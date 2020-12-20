@@ -55,12 +55,74 @@ betti E.dd_4
 burke = method()
 burke(Ring, Module, ZZ) := Complex => (R,M,len) ->(
     --put the map components together into what should be a complex.
-    mA := aInfinity(R,3);
-    mG := aInfinity(mA,M,3);
+    mA := aInfinity R;
+    mG := aInfinity(mA,M);
     D := mapComponents(mA,mG,len);
     labeledTensorComplex(R,complex(D/sum))
     )
 
+testAInfinity = method()
+testAInfinity HashTable := Boolean => mA -> (
+--    Tests whether the pairs in mA define an AInfinity algebra structure
+--    on the resolution of a ring R
+frees := select(keys mA, k->class k_0 === ZZ);
+n := max apply(frees, k-> #k);
+B := mA#"resolution";
+R := mA#"ring";
+S := ring presentation R;
+
+--m_1
+if n >= 1 then(
+    lenRes := (max select(frees, k-> #k ==1))_0 - 1;
+    A := complex apply(lenRes, j -> mA#{j+2});
+    t := all(lenRes, j -> prune HH_(j+2) A == 0);
+    if not t then (<<"mA_1 failed."<<endl; return false)
+    );
+
+--m_2
+if n >= 2 then (
+    B2 := labeledTensorComplex{B,B};
+    A0 := complex {A_0};
+    d1 := map(A_0, B_2, A.dd_1);
+    d1d1 := hashTable for i from min B to max B list 
+       i+2 => (d1**id_(B_i))*(B2_(i+2))^[{2,i}] - (id_(B_i)**d1)*(B2_(i+2))^[{i,2}];
+    D := map(A0**B,B2,d1d1, Degree => -2);
+    m0 := nullHomotopy D;
+
+    tlist := flatten for i from 4 to 1+(concentration B)_1 list(
+        (C,K) := componentsAndIndices B2_i;
+        for k in K list (
+	    k' := {k_0+k_1-1};
+	    mA#k == - map(target (B_(i-1))^[k'], source (B2_i)_[k],
+	        (B_(i-1))^[k']*m0_i*(B2_i)_[k]
+	    )
+	)
+    );
+    t = all(tlist, s->s);
+    if not t then (<<"mA_2 failed."<<endl; return false)
+);
+
+-*
+--m_i, i>=3
+for i from 3 to n do(
+    -- test mA_i return false if it fails
+*-
+true
+)
+
+///
+restart
+debug loadPackage "AInfinity"
+///
+
+///
+restart
+debug loadPackage "AInfinity"
+S = ZZ/101[a..d]
+R = S/(ideal gens S)^ 2
+elapsedTime mA = aInfinity R;
+testAInfinity mA
+///
 
 -*
 currently (11/26) BurkeData produces a list of the free modules in the Burke resolution to stage n,
@@ -222,9 +284,11 @@ check AInfinity
 ///
 
 TEST///
+debug needsPackage "AInfinity"
 S = ZZ/101[a,b]
-C = labeledDirectSum({A,B},{S^1,S^2})
-D = labeledDirectSum({X},{S^0})
+X = labeler(A,S^1)
+Y = labeler(B,S^2)
+C = labeledDirectSum {X,Y}
 --D = labeledDirectSum(S, {},{})
 --D^[{}]
 assert (componentsAndIndices C  == ({S^1, S^2}, {A,B}))
@@ -383,8 +447,8 @@ map(B_4, B_3**B_2, m#{3,2}) ==map(B_4, B_2**B_3,m#{2,3}*tensorCommutativity (B_3
 
 ///
 
-aInfinity = method()
-aInfinity (Ring,ZZ) := HashTable => (R,n) -> (
+aInfinity = method(Options => {LengthLimit => 3})
+aInfinity Ring := HashTable => o -> R -> (
     --R should be a factor ring of a polynomial ring S
     --The HashTable returned contains the A-infinity structure on an
     --S-free resolution A of R up to m_n: B^(**n) --> B
@@ -402,7 +466,9 @@ B := labeledTensorComplex complex(apply(length A-1, i -> -A.dd_(i+2)), Base =>2)
 m#"resolution" = B;
 
 --m#{u_1}
-apply(length B , i-> m#{i+3} = B.dd_(i+3));
+mA := new MutableHashTable;
+apply(1+length B , i-> m#{i+2} = - A.dd_(i+1));
+--apply(length B , i-> m#{i+3} = B.dd_(i+3));
 
 --m#{u_1,u_2}
 B2 := labeledTensorComplex{B,B};
@@ -454,7 +520,7 @@ needsPackage "DGAlgebras"
 kk = ZZ/101
 S = kk[a,b,c]
 R = S/((ideal a^2)*ideal(a,b,c))
-mA = aInfinity(R,3)
+mA = aInfinity R
 
 assert isGolod R
 M = coker vars R
@@ -466,7 +532,7 @@ picture E.dd_4
 extractBlocks(E.dd_4,{3,0},{4,0})*extractBlocks(E.dd_5,{4,0},{3,2,0})+
 extractBlocks(E.dd_4,{3,0},{2,2,0})*extractBlocks(E.dd_5,{2,2,0},{3,2,0})
 
-mA = aInfinity(R,3)
+mA = aInfinity R
 B = mA#"resolution"
 A = freeResolution coker presentation R
 B.dd
@@ -503,8 +569,8 @@ needsPackage "CompleteIntersectionResolutions"
 S = ZZ/101[a,b,c]
 R = S/ideal"a3,b3,c3"
 M = coker vars R
-mA = aInfinity(R,3)
-mG = aInfinity(mA,M,3)
+mA = aInfinity R
+mG = aInfinity (mA,M) 
 A = res coker presentation R
 G = res pushForward((map(R,S)),M)
 AG = A**G
@@ -519,9 +585,9 @@ mG = hashTable pairs mG
 
 /// 
 
-aInfinity(HashTable, Module, ZZ) := HashTable => (mR, M,n) -> (
+aInfinity(HashTable, Module) := HashTable => o -> (mR, M) -> (
     --R = ring M should be a factor ring of a polynomial ring S
-    --mR = aInfinity (R,n) an AInfinity structure on a resolution A of R
+    --mR = aInfinity R an AInfinity structure on a resolution A of R
     --M an R-module
     --The HashTable returned contains the A-infinity structure on 
     --an S-free resolution of M up to stage n.
@@ -595,9 +661,9 @@ R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
 K = koszul vars R
 M = coker K.dd_2
 
-mA = aInfinity(R,3)
+mA = aInfinity R
 B = mA#"resolution"
-mG = aInfinity(mA,M,3)
+mG = aInfinity(mA,M)
 G = mG#"resolution"
 
 keys mG
@@ -620,7 +686,7 @@ R = S/((ideal vars S)^3)
 R = S/ideal apply(gens S, x -> x^3)
 RS = map(R,S)
 M = coker vars R
-elapsedTime mR = aInfinity(R,3)
+elapsedTime mR = aInfinity R
 
 G = (freeResolution pushForward(RS,M))
 B = mR#"resolution"
@@ -646,13 +712,6 @@ G
 (G[-2])_i**(presentation R * (BG_i)^[{i,0}])
 
 componentsAndIndices(BG_i)
---this is from the  aInfinity(Ring,ZZ)
--*
-d := map(A0, B, i-> if (i == 2) then A.dd_1 else 0);
-m#"Bmap" = d;
-BG := labeledTensorComplex{B,G};
-for i from 2 to max BG list de_i*BG.dd_(i+1)+BG0.dd_(i)*de_(i)
-*-
 G0 = chainComplex complex G_0
 BG0 = chainComplex labeledTensorComplex{B,G0}
 
@@ -673,7 +732,7 @@ maps := hashTable for i from min G' to max G' list i+1=>map(G_i, BG'_(i+1), m0_i
 
 
 
-elapsedTime m = aInfinity(mR,M,3);
+elapsedTime m = aInfinity (mR,M);
 K = sort select(keys m, k->class k === List)
 for k in K do <<k<<" "<< picture(m#k)<< betti m#k <<endl;
 
@@ -690,14 +749,7 @@ needsPackage "Complexes"
 kk = ZZ/101
 S = kk[x_1..x_4]
 R = S/(ideal vars S)^2
-H = aInfinity(R,3);
-K = sort select(keys H, k->class k === List)
-for k in K do <<k<<" "<< picture(H#k)<< betti H#k <<endl;
-H#{2,{2,4}}
-
-use S
-R = S/ideal(apply(gens S, p-> p^2))
-H = aInfinity(R,3);
+H = aInfinity R;
 K = sort select(keys H, k->class k === List)
 for k in K do <<k<<" "<< picture(H#k)<< betti H#k <<endl;
 
@@ -712,7 +764,7 @@ debug loadPackage("AInfinity", Reload => true)
 kk = ZZ/101
 S = kk[a,b,c]
 R = S/ideal"a2-bc,b2,c2,ab,ac"
-H = aInfinity(R,3);
+H = aInfinity R;
 K = sort select(keys H, k->class k === List)
 for k in K do <<k<<" "<< picture(H#k)<< betti H#k <<endl;
 H#{2,{2,3}}
@@ -970,19 +1022,11 @@ end--
 -*
 TODO: 
 
-Make aInfinity(Ring,ZZ) use the commutative multiplication. 
+Make aInfinity Ring use the commutative multiplication. 
 Is there an analogue for the higher products?
 can we call SchurComplexes?
 
-add the maps B -> G 
-
-replace ** with eTensor
-
 add associativities
-
-construct the resolution
-
-
 
 
 Note: from "Grammarly":
@@ -1084,11 +1128,6 @@ betti res( coker vars R, LengthLimit =>5)
 --golodRanks(coker vars R, 5)
 ((1+t)^4)*sum(10, i-> (6*t^2+12*t^3+9*t^4+2*t^5)^i)
 
-m = aInfinity(R,3);
+m = aInfinity R;
 trim ideal(m#{2,2,2})
-----
-restart
-uninstallAllPackages()
-installPackage"Complexes"
-installPackage"FourTiTwo"
-viewHelp Complexes
+
