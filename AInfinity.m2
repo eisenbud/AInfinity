@@ -45,7 +45,7 @@ S = kk[a,b,c]
 R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
 K = koszul vars R
 M = coker K.dd_2
-E = burke(R,M,5)
+elapsedTime E = burke(R,M,6)
 E.dd^2
 apply(length E, i-> prune HH_(i)E)
 picture E
@@ -150,7 +150,7 @@ A'' := labeledTensorComplex(A'[-1]);
 A := A''[1];
 --B0 := labeledTensorComplex complex(apply(length A-1, i-> A.dd_(i+2)))[-2];
 B0 := labeledTensorComplex complex(apply(length A-1, i-> -A.dd_(i+2)),Base =>2);
-BB := {G}|apply(n//2, i->labeledTensorComplex(toList(i+1:B0)|{G}));
+BB := {G}|apply(n//2, i->labeledTensorComplex(toList(i+1:B0)|{G}, LengthLimit => n));
 C := apply(n+1, i-> select(apply(BB,b-> b_i), c -> c != 0));
 apply(C, c -> labeledDirectSum c))
 
@@ -320,11 +320,12 @@ picture id_C -- does not work
 C_[A] -- works
 ///
 
-labeledTensorComplex = method()
-labeledTensorComplex List := Complex => L -> (
+labeledTensorComplex = method(Options => {LengthLimit => null})
+labeledTensorComplex List := Complex => o -> L -> (
     --Input is L = {C_0..C_(p-1)}, a list of Complexes. 
-    --Returns the tensor product D of the C_i
-    --with labels so that the tensor product of {(C_i)_(u_i)} is labeled u = {..u_i..}
+    --Returns the tensor product D of the C_i. If LengthLimit => N is given, then
+    --the result is computed only up to homological degree N.
+    --Each term is labeled, so that the tensor product of {(C_i)_(u_i)} is labeled u = {..u_i..}
     --ComponentsAndIndices applied to D_i gives the correct list of indices, and
     --thus picture D works; but ALSO D_i_[u] and D_i^[u] return the inclusion
     --and projection correctly. (Note that this requires "double" labeling.)
@@ -341,10 +342,11 @@ labeledTensorComplex List := Complex => L -> (
     p := #L;
     Min := apply(L, C->min C);
     Max := apply(L, C->max C);
-    modules := apply(#L + sum Max - sum Min, i ->(
+    limit := if o.LengthLimit =!= null then o.LengthLimit else sum Max;
+    modules := apply(#L + limit -1 - sum Min, i ->(
 	    d := i+sum Min;
 	    com := select(compositions(p,d), c -> 
-		    all(p, i->Min_i <= c_i and c_i<= Max_i) and c != {});
+		    all(p, i-> Min_i <= c_i and c_i <= min(limit, Max_i)) and c != {});
 	    apply(com, co -> 
 		    (co => labeler(co, 
 			       tensor(S,apply(p, pp->(L_pp)_(co_pp))))))
@@ -355,7 +357,9 @@ labeledTensorComplex List := Complex => L -> (
 suitable := v-> if min v == 0 then position (v, vv -> vv == 1) else null;
      -- v is a list of ZZ. returns null unless v has the form
      -- {0...0,1,0..0}, in which case it returns the position of the 1.
-
+    
+    if #modules == 1 then return complex({map(S^0,directSum(1:(modules_0_0)),0)}, Base => sum Min -1);
+    
     d := for i from 0 to #modules -2 list(	
         map(directSum modules#i,
             directSum modules#(i+1),
@@ -378,9 +382,9 @@ suitable := v-> if min v == 0 then position (v, vv -> vv == 1) else null;
      (complex(d,Base => sum Min))
      )
 	       
-labeledTensorComplex Complex := Complex => C -> labeledTensorComplex{C}
+labeledTensorComplex Complex := Complex => o-> C -> labeledTensorComplex{C}
 
-labeledTensorComplex(Ring, Complex) := Complex => (R,C)->(
+labeledTensorComplex(Ring, Complex) := Complex => o -> (R,C)->(
     --preserve the labels on C while tensoring each free module with R.
     --NOTE that C must be a labeled complex!
     
@@ -405,14 +409,15 @@ TEST///
 S = ZZ/101[a,b,c]
 K' = complex koszul vars S
 
-K = labeledTensorComplex K'
+K = labeledTensorComplex K' --this should work!
 assert(label K_2 == {2})
-assert(K_0_[{0}] == map(S^1,S^1,1))
+assert(K_0_[{0}] == map(S^1,S^1,id_(S^1)))
 
-K2 = labeledTensorComplex{K',K'}
+K2 = labeledTensorComplex({K',K'}, LengthLimit => 3)
 picture K2
 componentsAndIndices(K2_1)
 assert(K2_1_[{1,0}] == map(S^{6:-1},S^{3:-1},id_(S^{3:-1})||0*id_(S^{3:-1})))
+assert(max K2 == 3)
 
 R = S/ideal a
 RK = labeledTensorComplex(R,K)
@@ -447,7 +452,7 @@ map(B_4, B_3**B_2, m#{3,2}) ==map(B_4, B_2**B_3,m#{2,3}*tensorCommutativity (B_3
 
 ///
 
-aInfinity = method(Options => {LengthLimit => 3})
+aInfinity = method(Options => {LengthLimit => null})
 aInfinity Ring := HashTable => o -> R -> (
     --R should be a factor ring of a polynomial ring S
     --The HashTable returned contains the A-infinity structure on an
@@ -465,16 +470,19 @@ A := freeResolution coker presentation R;
 B := labeledTensorComplex complex(apply(length A-1, i -> -A.dd_(i+2)), Base =>2); -- new B!
 m#"resolution" = B;
 
+limit := 1+max B;
+if o.LengthLimit =!= null then limit = o.LengthLimit;
+
 --m#{u_1}
 mA := new MutableHashTable;
 apply(1+length B , i-> m#{i+2} = - A.dd_(i+1));
 --apply(length B , i-> m#{i+3} = B.dd_(i+3));
 
 --m#{u_1,u_2}
-B2 := labeledTensorComplex{B,B};
+B2 := labeledTensorComplex({B,B}, LengthLimit => limit);
 A0 := complex {A_0};
 d1 := map(A_0, B_2, A.dd_1);
-d1d1 := hashTable for i from min B to max B list 
+d1d1 := hashTable for i from min B to max B2 -2 list 
        i+2 => (d1**id_(B_i))*(B2_(i+2))^[{2,i}] - (id_(B_i)**d1)*(B2_(i+2))^[{i,2}];
 D := map(A0**B,B2,d1d1, Degree => -2);
 m0 := nullHomotopy D;
@@ -489,22 +497,22 @@ for i from 4 to 1+(concentration B)_1 do(
     );
 
 --m#{u_1..u_3}	                    
-B3 := labeledTensorComplex toList(3:B);
+B3 := labeledTensorComplex(toList(3:B),LengthLimit => limit);
 e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
 
-for i from 3*2 to max B+1 do(
-        co := select(compositions(3,i,max B), c -> min c >= min B);
-	--(C,K) := componentsAndIndices (B2_i); is this better?
+for i from 3*2 to min(limit, 1+max B) do(
+        co := select(compositions(3,i,max B), c -> min c >= 2);	
 	for k in co do(
-	dm3 := m#{sum k_{0,1}-1,k_2} * (m#(k_{0,1})**B_(k_2)) +
+	    dm3 := m#{sum k_{0,1}-1,k_2} * (m#(k_{0,1})**B_(k_2)) +
 	
-	       (-1)^(k_0)* m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
+	    (-1)^(k_0)* m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
         
-	       sum(apply(3, ell -> if min(k-e_ell)< min B then 0 else (
-			mm := tensor(S, apply(3, i-> if i == ell then m#(k_{ell}) else B_(k_i)));
-		       (-1)^(sum k_{0..ell-1})*m#(k-e_ell)*mm)));
+	    sum(apply(3, ell -> if min(k-e_ell) <= 1 then 0
+	        else (mm := tensor(S, apply(3, i-> if i == ell then m#(k_{ell}) else B_(k_i)));
+	        (-1)^(sum k_{0..ell-1})*m#(k-e_ell)*mm)));
+    
 	       --mm is m#(k_{ell}) tensored with factors B_(k_i) in the appropriate order. eg, 
-	       --if ell = 0,then
+	       --for example, if ell = 0,then
 	       --mm = m#(k_{0})**B_(k_1)**B_(k_1)
 	m3 := dm3//B.dd_(i-1);
         m#k = map(B_(i-1), B3_i, m3*B3_i^[k])
@@ -602,18 +610,20 @@ S := ring presentation R;
 A := labeledTensorComplex freeResolution coker presentation R;
 RS := map(R,S);
 
+
 Mres := freeResolution pushForward(RS,M);
 G := complex labeledTensorComplex{Mres};
 m#"resolution" = G;
+limit := if o.LengthLimit =!= null then o.LengthLimit else 1+max G;
 
 --m#u, #u=1
   apply(length G , i-> m#{i+1} = G.dd_(i+1));    
 
 ----m#u, #u=2
-BG := labeledTensorComplex{B,G};
+BG := labeledTensorComplex({B,G}, LengthLimit => limit);
 A0 := complex {A_0};
 d1 := map(A_0, B_2, A.dd_1);
-dG := hashTable for i from min G to max G list
+dG := hashTable for i from min G to min(limit-2, max G) list
               i+2 => (d1**id_(G_i))*(BG_(i+2))^[{2,i}];
 D := map(A0**G, BG, dG, Degree => -2);
 m0 := nullHomotopy D;
@@ -626,10 +636,10 @@ for i from 2 to 1+(concentration G)_1 do(
     );
 
 --m#u, #u=3	                       );
-B2G := labeledTensorComplex (toList(2:B)|{G});
+B2G := labeledTensorComplex (toList(2:B)|{G}, LengthLimit => limit);
 e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
 
-for i from min B2G to max G+1 do(
+for i from min B2G to min(limit, 1+max G) do(
 	(C,K) := componentsAndIndices (B2G_i);
 	for k in K do(
 M := hashTable apply(e, ee-> 
