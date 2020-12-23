@@ -40,49 +40,100 @@ debug loadPackage "AInfinity"
 ///
 restart
 loadPackage("AInfinity", Reload => true)
-kk = ZZ/5
+kk = ZZ/2
 S = kk[a,b,c]
 R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
 K = koszul vars R
 M = coker K.dd_2
-elapsedTime E = burke(R,M,6)
+elapsedTime E = burke(R,M,7)
 E.dd^2
 apply(length E, i-> prune HH_(i)E)
 picture E
 betti E.dd_4
-
---Roos example: Claimed to be non-Golod with trivial homology algebra.
-restart
-needsPackage "DGAlgebras"
-needsPackage "AInfinity"
-kk = ZZ/101
-S = kk[x,y,z,u]
-I = ideal(u^3, x*y^2, (x+y)*z^2, x^2*u+z*u^2, y*y*u+x*z*u, y^2*z+y*z^2) -- has the betti nums as in Roos
-R = S/I
-betti res coker presentation R
-K = select(keys mA, k->class k_0 === ZZ)
-netList apply(K, k -> picture mA#k)
-
-mA = aInfinity R
-mG = aInfinity(mA,coker vars R, LengthLimit =>4) 
-elapsedTime F = burke(R,coker vars R,7 )
-elapsedTime res(coker vars R, LengthLimit => 7)
-
-picture F
-
 restart
 needsPackage "AInfinity"
---errorDepth = 1
 kk = ZZ/101
 S = kk[x,y,z]
 I = ideal"x2,y2,z2"*(ideal vars S)
 R =S/I
 mA = aInfinity R
 mG = aInfinity(mA,coker vars R)
-burke(R,coker vars R,6)
+F = burke(R,coker vars R,7)
+assert (F.dd^2==0)
 picture oo
 keys mA
 mA#{2,2,2}
+
+--------OK up to here.
+
+--Roos example: Claimed to be non-Golod with trivial homology algebra.
+restart
+debug needsPackage "AInfinity"
+kk = ZZ/5
+S = kk[x,y,z,u]
+I = ideal(u^3, x*y^2, (x+y)*z^2, x^2*u+z*u^2, y*y*u+x*z*u, y^2*z+y*z^2) -- has the betti nums as in Roos
+R = S/I
+betti res coker presentation R
+
+mA = aInfinity R
+mG = aInfinity(mA,coker vars R, LengthLimit =>4) 
+K = select(keys mA, k->class k_0 === ZZ)
+netList apply(K, k -> picture mA#k)
+
+elapsedTime F = burke(R,coker vars R,6)
+picture F
+F.dd^2==0 --bug! is back. OK mod 2
+F.dd_5*F.dd_6 =!= 0
+picture(F.dd_5*F.dd_6)
+--problem is {2,2,2,0}->{4,0}
+
+picture F.dd_6 
+--{2,2,2,0} -> {5,0}++{2,3}++{3,2,0}++{2,3,0}++{2,2,1}
+picture F.dd_5 
+--{5,0}++{4,1}++{3,2,0}++{2,3,0} --> {4,0}
+--So the possible compositions are
+
+-- {2,2,2,0} -> {5,0} -> {4,0}
+g1 = extractBlocks(F.dd_5,{4,0},{5,0})*extractBlocks(F.dd_6,{5,0},{2,2,2,0})
+-- {2,2,2,0} -> {3,2,0} -> {4,0}
+g2 = extractBlocks(F.dd_5,{4,0},{3,2,0})*extractBlocks(F.dd_6,{3,2,0},{2,2,2,0})
+-- {2,2,2,0} -> {2,3,0} -> {4,0}
+g3 = extractBlocks(F.dd_5,{4,0},{2,3,0})*extractBlocks(F.dd_6,{2,3,0},{2,2,2,0})
+
+assert(g1+g2+g3 == extractBlocks(F.dd_5*F.dd_6, {4,0}, {2,2,2,0}))
+assert(g1-g2-g3 == 0)
+elapsedTime res(coker vars R, LengthLimit => 7)
+
+testAInfinity mA
+
+---
+
+-- note: if we put a minus sign in front of dm where it probably should be,
+-- the first two examples are still ok and this third one breaks at
+-- F.dd_3*F.dd_4:
+
+-- --problem is {2,2,0}->{2}
+
+-- picture F.dd_4
+-- --{2,2,0} -> {3}++{3,0}++{2,1}
+-- picture F.dd_3
+-- --{3}++{3,0}++{2,1} --> {2}
+-- --So the possible compositions are
+
+-- -- {2,2,0} -> {3} -> {2}
+-- g1 = extractBlocks(F.dd_3,{2},{3})*extractBlocks(F.dd_4,{3},{2,2,0})
+-- -- {2,2,0} -> {3,0} -> {2}
+-- g2 = extractBlocks(F.dd_3,{2},{3,0})*extractBlocks(F.dd_4,{3,0},{2,2,0})
+-- -- {2,2,0} -> {2,1} -> {2}
+-- g3 = extractBlocks(F.dd_3,{2},{2,1})*extractBlocks(F.dd_4,{2,1},{2,2,0})
+
+-- assert(g1+g2+g3 == extractBlocks(F.dd_3*F.dd_4, {2}, {2,2,0}))
+-- g1+g2+g3
+-- g1+g2-g3 
+-- g1-g2+g3
+-- g1-g2-g3
+
+
 ///
 
 burke = method()
@@ -509,7 +560,6 @@ if o.LengthLimit =!= null then limit = o.LengthLimit;
 --m#{u_1}
 mA := new MutableHashTable;
 apply(1+length B , i-> m#{i+2} = - A.dd_(i+1));
---apply(length B , i-> m#{i+3} = B.dd_(i+3));
 
 --m#{u_1,u_2}
 B2 := labeledTensorComplex({B,B}, LengthLimit => limit);
@@ -536,14 +586,14 @@ e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
 for i from 3*2 to min(limit, 1+max B) do(
         co := select(compositions(3,i,max B), c -> min c >= 2);	
 	for k in co do(
-	    dm3 := m#{sum k_{0,1}-1,k_2} * (m#(k_{0,1})**B_(k_2)) +
+	    dm3 := (m#{sum k_{0,1}-1,k_2} * (m#(k_{0,1})**B_(k_2)) + --was +(...
 	
 	    (-1)^(k_0)* m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
         
 	    sum(apply(3, ell -> if min(k-e_ell) <= 1 then 0
 	        else (mm := tensor(S, apply(3, i-> if i == ell then m#(k_{ell}) else B_(k_i)));
-	        (-1)^(sum k_{0..ell-1})*m#(k-e_ell)*mm)));
-    
+	        (-1)^(sum k_{0..ell-1})*m#(k-e_ell)*mm)))
+                    );
 	       --mm is m#(k_{ell}) tensored with factors B_(k_i) in the appropriate order. eg, 
 	       --for example, if ell = 0,then
 	       --mm = m#(k_{0})**B_(k_1)**B_(k_1)
@@ -655,7 +705,7 @@ limit := if o.LengthLimit =!= null then o.LengthLimit else 1+max G;
 ----m#u, #u=2
 BG := labeledTensorComplex({B,G}, LengthLimit => limit);
 A0 := complex {A_0};
-d1 := map(A_0, B_2, A.dd_1);
+d1 := map(A_0, B_2, -A.dd_1); -- was +A.dd_1
 dG := hashTable for i from min G to min(limit-2, max G) list
               i+2 => (d1**id_(G_i))*(BG_(i+2))^[{2,i}];
 D := map(A0**G, BG, dG, Degree => -2);
@@ -687,10 +737,7 @@ M := hashTable apply(e, ee-> (
 				       (if ee_j == 0 then fac = B_(k_j) else fac = mR#{k_j});
 		                   if j == 2 then(if ee_j == 0 then fac = G_(k_j) else fac = m#{k_j});
 				      fac)
-				  )
-			      )
-			  )
-		     );
+				  ))));
 		      
 	dm3 := -( m#{sum k_{0,1}-1,k_2} * (mR#(k_{0,1})**G_(k_2)) +
 	
