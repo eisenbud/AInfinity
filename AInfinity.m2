@@ -50,6 +50,39 @@ E.dd^2
 apply(length E, i-> prune HH_(i)E)
 picture E
 betti E.dd_4
+
+--Roos example: Claimed to be non-Golod with trivial homology algebra.
+restart
+needsPackage "DGAlgebras"
+needsPackage "AInfinity"
+kk = ZZ/101
+S = kk[x,y,z,u]
+I = ideal(u^3, x*y^2, (x+y)*z^2, x^2*u+z*u^2, y*y*u+x*z*u, y^2*z+y*z^2) -- has the betti nums as in Roos
+R = S/I
+betti res coker presentation R
+K = select(keys mA, k->class k_0 === ZZ)
+netList apply(K, k -> picture mA#k)
+
+mA = aInfinity R
+mG = aInfinity(mA,coker vars R, LengthLimit =>4) 
+elapsedTime F = burke(R,coker vars R,7 )
+elapsedTime res(coker vars R, LengthLimit => 7)
+
+picture F
+
+restart
+needsPackage "AInfinity"
+--errorDepth = 1
+kk = ZZ/101
+S = kk[x,y,z]
+I = ideal"x2,y2,z2"*(ideal vars S)
+R =S/I
+mA = aInfinity R
+mG = aInfinity(mA,coker vars R)
+burke(R,coker vars R,6)
+picture oo
+keys mA
+mA#{2,2,2}
 ///
 
 burke = method()
@@ -627,7 +660,7 @@ dG := hashTable for i from min G to min(limit-2, max G) list
               i+2 => (d1**id_(G_i))*(BG_(i+2))^[{2,i}];
 D := map(A0**G, BG, dG, Degree => -2);
 m0 := nullHomotopy D;
-for i from 2 to 1+(concentration G)_1 do(
+for i from 2 to min(limit, 1+(concentration G)_1) do( --was just 1+(concentration G)_1
     (C,K) := componentsAndIndices BG_i;
     for k in K do (
 	k' := {k_0+k_1-1};
@@ -639,22 +672,33 @@ for i from 2 to 1+(concentration G)_1 do(
 B2G := labeledTensorComplex (toList(2:B)|{G}, LengthLimit => limit);
 e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
 
+
 for i from min B2G to min(limit, 1+max G) do(
 	(C,K) := componentsAndIndices (B2G_i);
 	for k in K do(
-M := hashTable apply(e, ee-> 
-           ee => tensor(S, apply(3, i-> (
-		      if i<2    and ee_i == 0 then B_(k_i) else
-		      if i == 2 and ee_i == 0 then G_(k_i) else
-		      if m#?{k_i} then m#{k_i} else S^0))));
-	  
+fac := null;
+M := hashTable apply(e, ee-> (
+   	p := position(ee, j-> j==1);
+	if not((p<2 and mR#?{k_p}) or (p == 2 and m#?{k_p})) 
+	   then ee => S^0 
+           else ee => tensor(S, 
+				 apply(3, j -> (
+				   if j<2 then 
+				       (if ee_j == 0 then fac = B_(k_j) else fac = mR#{k_j});
+		                   if j == 2 then(if ee_j == 0 then fac = G_(k_j) else fac = m#{k_j});
+				      fac)
+				  )
+			      )
+			  )
+		     );
+		      
 	dm3 := -( m#{sum k_{0,1}-1,k_2} * (mR#(k_{0,1})**G_(k_2)) +
 	
 	       (-1)^(k_0) * m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
 	               
 	       sum(apply(#e, ell ->
 			if min(k-e_ell-{2,2,0})<0 then 0 else 
-		       (-1)^(sum k_{0..ell-1}) * m#(k-e_ell) * M#{e_ell}))
+		       (-1)^(sum k_{0..ell-1}) * m#(k-e_ell) * M#(e_ell)))
 		   );
 
 	m3 := dm3//G.dd_(i-1);
