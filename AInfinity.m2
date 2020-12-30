@@ -32,9 +32,10 @@ restart
 uninstallPackage "AInfinity"
 restart
 installPackage "AInfinity"
-check AInfinity
+
 restart
 debug loadPackage "AInfinity"
+check AInfinity
 ///
 
 burke = method()
@@ -81,7 +82,7 @@ mapComponents List := List => u -> (
     --We require also v_0..v_(m-1)>=2 and v_m>=0; otherwise this is not 
     --the index of a module in the resolution.
 
-    sign := p-> (-1)^(sum apply(p, i->1+u_i)); --replaced u_i by 1+u_i 12/28
+    sign := p-> (-1)^(sum apply(p, i->u_i)); 
     n := #u-1;
     L0 := apply(n+1, p-> {sign p, p,p,u_{0..p-1}|{u_p-1}|u_{p+1..n}});
     L1 := flatten apply(n, p -> for q from p+1 to n list {sign p, p,q,u_{0..p-1}|
@@ -156,11 +157,19 @@ loadPackage("AInfinity", Reload => true)
 ///
 TEST///
 kk = ZZ/101
-S = kk[a,b,c,d]
-R = S/(ideal(a,b,c,d))^2
+S = kk[a,b,c]
+R = S/(ideal(a,b,c))^2
+--R = S/ideal"a3,b3,c3"
 mA = aInfinity R
 K = koszul vars R
-mG =apply(3,i-> aInfinity (mA,coker K.dd_(i+1)));
+M = coker random(R^2, R^{-3,-2,-2})--vars R
+aInfinity(mA,M)
+betti burke(R,M,5)
+betti res(M, LengthLimit => 8)
+apply(3,i-> aInfinity (mA,coker K.dd_(i+1)));
+netList apply(3,i-> (use R;
+	picture burke(R,coker K.dd_(i+1),6))
+)
 ///
 
 ///
@@ -401,8 +410,7 @@ d1d1 := hashTable for i from min B to max B2 -2 list
 --error();
 
 D := map(labeledTensorComplex{A0,B},B2,d1d1, Degree => -2);
-D := map(A0**B,B2,d1d1, Degree => -2);
-lo := hi:= null;
+--lo := hi:= null;
 assert (isComplexMap D);
 m0 := nullHomotopy D;
 for i from 4 to 1+(concentration B)_1 do(
@@ -520,8 +528,7 @@ MM := hashTable apply(e, ee-> (
 		      
 	dm3 := -( m#{sum k_{0,1}-1,k_2} * (mR#(k_{0,1})**G_(k_2)) +
 	
-	       (-1)^(1+k_0) * m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
-	       --sign changed 12/28        
+	       (-1)^(k_0) * m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
 	       
 	       sum(apply(#e, ell ->
 			if min(k-e_ell-{2,2,0})<0 then 0 else 
@@ -1069,8 +1076,8 @@ suitable := v-> if min v == 0 then position (v, vv -> vv == 1) else null;
                     m := map(tar, src, 
 			if p === null then 0 
 			else(
-			    sign := (-1)^(sum(indsrc_(toList(0..p))));
-			    print(i,j,k,p,sign);
+			    sign := (-1)^(sum(indsrc_(toList(0..p-1)))); -- was p
+			    --print(i,j,k,p,sign);
 			    phi := sign*(
 			    (tensor(S, apply(p, q -> L_q_(indtar_q))))
 			    **
@@ -1124,12 +1131,12 @@ Y = extractBlocks(FF.dd_5,{{2,2}},{{2,3}})
 isComplexMap = D -> (
     A := source D;
     B := target D;
-    deg = degree D;
+    deg := degree D;
     isWellDefined D;
     (lo,hi) := concentration A;
-    for i from lo+1 to hi do --make sure D is a map of complexes!
-        assert(B.dd_(i+deg)*D_i  ==  D_(i-1)*A.dd_i)
-    )
+    all(toList(lo+1..hi), i-> --make sure D is a map of complexes!
+        (B.dd_(i+deg)*D_i  ==  D_(i-1)*A.dd_i)
+	))
 
 beginDocumentation()
 
@@ -1238,7 +1245,7 @@ I = ideal"x2,y2,z2"*(ideal vars S)
 R =S/I
 mA = aInfinity R
 mG = aInfinity(mA,coker vars R)
-F = burke(R,coker vars R,3)
+F = burke(R,coker vars R,6)
 assert (F.dd^2==0)
 assert all(5, i-> prune HH_(i+1)F == 0)
 
