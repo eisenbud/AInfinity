@@ -17,11 +17,7 @@ export {
     "aInfinity",
     "burke",
     "golodBetti",
-    "labeledTensorComplex",
-    "labeledDirectSum",
-    "mapComponents",
     "componentsAndIndices",
-    "label",
     "picture",
     "displayBlocks",
     "extractBlocks"
@@ -32,15 +28,16 @@ restart
 uninstallPackage "AInfinity"
 restart
 installPackage "AInfinity"
+check AInfinity
 
 restart
 debug loadPackage "AInfinity"
-check AInfinity
 ///
 
 burke = method()
-burke(Ring, Module, ZZ) := Complex => (R,M,len) ->(
+burke(Module, ZZ) := Complex => (M,len) ->(
     --put the map components together into what should be a complex.
+    R := ring M;
     mA := aInfinity R;
     mG := aInfinity(mA,M);
     D := mapComponents(mA,mG,len);
@@ -62,8 +59,13 @@ G := labeledTensorComplex freeResolution(pushForward(RS, M), LengthLimit=>n);
 A' := freeResolution (coker presentation R, LengthLimit => n-1);
 A'' := labeledTensorComplex(A'[-1]);
 A := A''[1];
---B0 := labeledTensorComplex complex(apply(length A-1, i-> A.dd_(i+2)))[-2];
-B0 := labeledTensorComplex complex(apply(length A-1, i-> -A.dd_(i+2)),Base =>2);
+
+--B0 the following was trouble in the case length A = 1.
+if length A>1 then 
+    B0 := labeledTensorComplex complex(apply(length A-1, i-> -A.dd_(i+2)),Base =>2)
+    else
+    B0 = labeledTensorComplex complex({A_1}, Base =>2);
+    
 BB := {G}|apply(n//2, i->labeledTensorComplex(toList(i+1:B0)|{G}, LengthLimit => n));
 C := apply(n+1, i-> select(apply(BB,b-> b_i), c -> c != 0));
 apply(C, c -> labeledDirectSum c))
@@ -130,10 +132,11 @@ mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
 		    (F_(t-1))_[u_{0..p-1}|{-1+sum u_{p..q}}|u_{q+1..numRComponents}]*
 		    (if q<numRComponents 
 		     then 
-		        tensor (S, for i from 0 to p-1 list B_(u_i))**
-	 		mA#(u_{p..q})**
-	 		tensor(S, for i from q+1 to numRComponents-1 list B_(u_i))**
-	 		G_(u_numRComponents)
+		        tensor (S, for i from 0 to p-1 list 
+			    B_(u_i))**
+	 		    mA#(u_{p..q})**
+	 		    tensor(S, for i from q+1 to numRComponents-1 list B_(u_i))**
+	 		    G_(u_numRComponents)
                      else
 	     		tensor(S, for i from 0 to p-1 list B_(u_i))**
 	     		mG#(u_{p..q})
@@ -145,230 +148,7 @@ mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
 --We should probably break this into pieces, and have a function that produces
 --the individual component corresponding to a member v of vv.
 
-///
-restart
-loadPackage("AInfinity", Reload => true)
-check AInfinity
-///
 
-///
-restart
-loadPackage("AInfinity", Reload => true)
-///
-TEST///
-kk = ZZ/101
-S = kk[a,b,c]
-R = S/(ideal(a,b,c))^2
---R = S/ideal"a3,b3,c3"
-mA = aInfinity R
-K = koszul vars R
-M = coker random(R^2, R^{-3,-2,-2})--vars R
-aInfinity(mA,M)
-betti burke(R,M,5)
-betti res(M, LengthLimit => 8)
-apply(3,i-> aInfinity (mA,coker K.dd_(i+1)));
-netList apply(3,i-> (use R;
-	picture burke(R,coker K.dd_(i+1),6))
-)
-///
-
-///
-restart
-loadPackage("AInfinity", Reload => true)
-///
-TEST///
-S = ZZ/101[a..d]
-R = S/ideal"a3,b3,c3,d3"
-mA = aInfinity R;
-
---tensorCommutativity(M,N): M**N --> N**M.
-B = mA#"resolution"
---m{2,2} is skew-symmetric, mimicking A_1**A_1 -> A_2
-assert (0==mA#{2,2}+mA#{2,2}*tensorCommutativity (B_2,B_2)) -- anti-commutative
-assert (0==mA#{3,3}-mA#{3,3}*tensorCommutativity (B_3,B_3)) -- commutative
-assert (0==mA#{3,2}+mA#{2,3}*tensorCommutativity (B_3,B_2)) -- this seems wrong;I would have thought that 2,3 should commute.
-
-///
-
-
-///
-restart
-loadPackage( "AInfinity", Reload => true)
-///
-
-
-
-
-///
---Roos example: Claimed to be non-Golod with trivial homology algebra.
-restart
-debug needsPackage "AInfinity"
-kk = ZZ/5
-S = kk[x,y,z,u]
-I = ideal(u^3, x*y^2, (x+y)*z^2, x^2*u+z*u^2, y*y*u+x*z*u, y^2*z+y*z^2) -- has the betti nums as in Roos
-R = S/I
-betti res coker presentation R
-
-mA = aInfinity R
-mG = aInfinity(mA,coker vars R, LengthLimit =>4) 
-K = select(keys mA, k->class k_0 === ZZ)
-netList apply(K, k -> picture mA#k)
-
-elapsedTime F = burke(R,coker vars R,6)
-picture F
-F.dd^2==0 --bug! is back. OK mod 2
-F.dd_5*F.dd_6 =!= 0
-picture(F.dd_5*F.dd_6)
---problem is {2,2,2,0}->{4,0}
-
-picture F.dd_6 
---{2,2,2,0} -> {5,0}++{2,3}++{3,2,0}++{2,3,0}++{2,2,1}
-picture F.dd_5 
---{5,0}++{4,1}++{3,2,0}++{2,3,0} --> {4,0}
---So the possible compositions are
-
--- {2,2,2,0} -> {5,0} -> {4,0}
-g1 = extractBlocks(F.dd_5,{4,0},{5,0})*extractBlocks(F.dd_6,{5,0},{2,2,2,0})
--- {2,2,2,0} -> {3,2,0} -> {4,0}
-g2 = extractBlocks(F.dd_5,{4,0},{3,2,0})*extractBlocks(F.dd_6,{3,2,0},{2,2,2,0})
--- {2,2,2,0} -> {2,3,0} -> {4,0}
-g3 = extractBlocks(F.dd_5,{4,0},{2,3,0})*extractBlocks(F.dd_6,{2,3,0},{2,2,2,0})
-
-assert(g1+g2+g3 == extractBlocks(F.dd_5*F.dd_6, {4,0}, {2,2,2,0}))
-assert(g1-g2-g3 == 0)
-elapsedTime res(coker vars R, LengthLimit => 7)
-
-testAInfinity mA
-
----
-
--- note: if we put a minus sign in front of dm where it probably should be,
--- the first two examples are still ok and this third one breaks at
--- F.dd_3*F.dd_4:
-
--- --problem is {2,2,0}->{2}
-
--- picture F.dd_4
--- --{2,2,0} -> {3}++{3,0}++{2,1}
--- picture F.dd_3
--- --{3}++{3,0}++{2,1} --> {2}
--- --So the possible compositions are
-
--- -- {2,2,0} -> {3} -> {2}
--- g1 = extractBlocks(F.dd_3,{2},{3})*extractBlocks(F.dd_4,{3},{2,2,0})
--- -- {2,2,0} -> {3,0} -> {2}
--- g2 = extractBlocks(F.dd_3,{2},{3,0})*extractBlocks(F.dd_4,{3,0},{2,2,0})
--- -- {2,2,0} -> {2,1} -> {2}
--- g3 = extractBlocks(F.dd_3,{2},{2,1})*extractBlocks(F.dd_4,{2,1},{2,2,0})
-
--- assert(g1+g2+g3 == extractBlocks(F.dd_3*F.dd_4, {2}, {2,2,0}))
--- g1+g2+g3
--- g1+g2-g3 
--- g1-g2+g3
--- g1-g2-g3
-
-///
-
-///
---3-variable bug!
-restart
-loadPackage( "AInfinity", Reload => true)
-kk = ZZ/101
-S = kk[a,b,c]
-R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
-K = koszul vars R
-M = coker K.dd_2
-
-mA = aInfinity R
-mG = aInfinity(mA,M)
-isWellDefined D
-source D
-prune HH_3 BG
-prune HH_3 B
-pBG := hashTable(for i from lo to min(hi,max G) list i=>(BG_i)^[{2,i-2}])
-hi
-target (B_2**G, BG, pBG, Degree => -2)
-
-nullHomotopyFreeSource D
-nullHomotopyFreeSource = f -> (
-    -- f:ComplexMap
-    -- key assumption: 'source f' is a complex of free modules
-    -- result is a ComplexMap h : C --> D, of degree degree(f)+1
-    C = source f;
-    D = target f;
-    deg := degree f + 1;
-    hs := new MutableHashTable;
-    (lo,hi) := concentration f;
-    for i from lo to hi do (
-        if hs#?(i-1) then ( 
-            rem := (f_i - hs#(i-1) * dd^C_i) % (dd^D_(i+deg));
-            if rem != 0 then return null; -- error "can't construct homotopy";
-            hs#i = (f_i - hs#(i-1) * dd^C_i) // (dd^D_(i+deg))
-            )
-        else (
-            rem = f_i % dd^D_(i+deg);
-            if rem != 0 then return null; -- error "can't construct homotopy";
-            hs#i = f_i // dd^D_(i+deg)
-            )
-        );
-    map(D, C, new HashTable from hs, Degree => deg)
-    )
-
-
-F = burke(R,M,5)
-G = mG#"resolution"
-assert(F.dd^2 == 0)
-assert all(length F -1, i-> prune HH_(i+1)F == 0)
---find and squash!
-picture(F.dd_4*F.dd_5)
--- --problems with {2,2,1}->{3}, {3,2,0} -> 3 and {2,3,0}->3
---try {3,2,0} first.
-picture F.dd_5
-{3,2,0} -> {4,0}++{3,1}++{2,2,0} -> {3}
-mapComponents {3,2,0}
-
-A = extractBlocks(F.dd_5, {{4,0},{3,1},{2,2,0}}, {{3,2,0}})
-A1 = extractBlocks(F.dd_5, {{4,0}}, {{3,2,0}})
-A2 = extractBlocks(F.dd_5, {{3,1}}, {{3,2,0}})
-A3 = extractBlocks(F.dd_5, {{2,2,0}}, {{3,2,0}})
-
-picture F.dd_4
-B = extractBlocks(F.dd_4, {{3}}, {{4,0},{3,1},{2,2,0}})
-B1 = extractBlocks(F.dd_4, {{3}}, {{4,0}})
-B2 = extractBlocks(F.dd_4, {{3}}, {{3,1}})
-B3 = extractBlocks(F.dd_4, {{3}}, {{2,2,0}})
-C1 = B1*A1
-C2 = B2*A2
-C3 = B3*A3
-C1+C2+C3  --== B*A
-****C1-C2+C3 -- this is 0. Suggests that passing by 3 should have sign + instead of -
-C1+C2-C3
-C1-C2-C3
-B = mA#"resolution"
-G = mG#"resolution"
-G.dd_3*mG#{2,2,0}+mG#{2,1}*(B_2**mG#{2,0})+mG#{3,0}*(mA#{2,2}**G_0)
-mG#{2,2,0} == -(mG#{2,1}*(B_2**mG#{2,0})+mG#{3,0}*(mA#{2,2}**G_0))//G.dd_3
--(mG#{2,1}*(B_2**mG#{2,0})+mG#{3,0}*(mA#{2,2}**G_0)) % G.dd_3 -- this is nonzero!! and we never check...
-
--- --{2,2,1} -> {3}++{3,0}++{2,1}
--- picture F.dd_3
--- --{3}++{3,0}++{2,1} --> {2}
--- --So the possible compositions are
-
--- -- {2,2,0} -> {3} -> {2}
--- g1 = extractBlocks(F.dd_3,{2},{3})*extractBlocks(F.dd_4,{3},{2,2,0})
--- -- {2,2,0} -> {3,0} -> {2}
--- g2 = extractBlocks(F.dd_3,{2},{3,0})*extractBlocks(F.dd_4,{3,0},{2,2,0})
--- -- {2,2,0} -> {2,1} -> {2}
--- g3 = extractBlocks(F.dd_3,{2},{2,1})*extractBlocks(F.dd_4,{2,1},{2,2,0})
-
--- assert(g1+g2+g3 == extractBlocks(F.dd_3*F.dd_4, {2}, {2,2,0}))
--- g1+g2+g3
--- g1+g2-g3 
--- g1-g2+g3
--- g1-g2-g3
-
-///
 
 aInfinity = method(Options => {LengthLimit => null})
 aInfinity Ring := HashTable => o -> R -> (
@@ -385,10 +165,12 @@ m#"ring" = R;
 S := ring presentation R;
 RS := map(R,S);
 A := freeResolution coker presentation R;
-B := labeledTensorComplex complex(
-           apply(length A-1, i -> 
-	   map(A_(i+1), A_(i+2), -A.dd_(i+2))), 
-	   Base =>2);
+if length A>1 then
+    B := labeledTensorComplex complex(
+        apply(length A-1, i -> 
+	map(A_(i+1), A_(i+2), -A.dd_(i+2))), 
+	Base => 2) 
+    else B = complex({labeler({2}, A_1)}, Base => 2);
 m#"resolution" = B;
 
 limit := 1+max B;
@@ -399,18 +181,14 @@ mA := new MutableHashTable;
 --apply(1+length B , i-> m#{i+2} = - A.dd_(i+1));
 apply(1+length B , i-> m#{i+2} = B.dd_(i+2));
 
---error();
 --m#{u_1,u_2}
 B2 := labeledTensorComplex({B,B}, LengthLimit => limit);
 A0 := complex {A_0};
 d1 := map(A_0, B_2, A.dd_1); --the positive sign is a literal interpretation of Burke
 d1d1 := hashTable for i from min B to max B2 -2 list 
        i+2 => (d1**id_(B_i))*(B2_(i+2))^[{2,i}] - (id_(B_i)**d1)*(B2_(i+2))^[{i,2}];
---D := map(A0**B,B2,d1d1, Degree => -2);
---error();
 
 D := map(labeledTensorComplex{A0,B},B2,d1d1, Degree => -2);
---lo := hi:= null;
 assert (isComplexMap D);
 m0 := nullHomotopy D;
 for i from 4 to 1+(concentration B)_1 do(
@@ -422,7 +200,7 @@ for i from 4 to 1+(concentration B)_1 do(
 	        )
 	)
     );
---error();
+
 --m#{u_1..u_3}	                    
 B3 := labeledTensorComplex(toList(3:B),LengthLimit => limit);
 e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
@@ -559,7 +337,7 @@ mA = aInfinity R
 
 assert isGolod R
 M = coker vars R
-E = burke(R,M,5)
+E = burke(M,5)
 E.dd^2 -- F_5-> F_4->F_3 is not 0. However, F_4 -> F_3 does surject onto ker F_3->F_2,
 picture (E.dd_4 * E.dd_5)
 picture E.dd_5
@@ -700,10 +478,6 @@ G' := complex(for i from 2 to max G list G.dd_i, Base => 1);
 m0 := extend(G,AG,id_(G_0));
 maps := hashTable for i from min G' to max G' list i+1=>map(G_i, BG'_(i+1), m0_i);
 
-
-
-
-
 elapsedTime m = aInfinity (mR,M);
 K = sort select(keys m, k->class k === List)
 for k in K do <<k<<" "<< picture(m#k)<< betti m#k <<endl;
@@ -711,7 +485,6 @@ for k in K do <<k<<" "<< picture(m#k)<< betti m#k <<endl;
 MS = pushForward(map(R,S), M)
 G = res MS
 A = res coker presentation R
-
 ///
 
 
@@ -725,9 +498,38 @@ R = S/(ideal vars S)^2
 H = aInfinity R;
 K = sort select(keys H, k->class k === List)
 for k in K do <<k<<" "<< picture(H#k)<< betti H#k <<endl;
-
 --note that m{3,{2,2,2}} = 0, since K res R^1 is a DG algebra!
 ///
+
+
+
+///
+restart
+loadPackage( "AInfinity", Reload => true)
+///
+///
+bug: testAInfinity is not working!
+--Roos example: Claimed to be non-Golod with trivial homology algebra.
+kk = ZZ/5
+S = kk[x,y,z,u]
+I = ideal(u^3, x*y^2, (x+y)*z^2, x^2*u+z*u^2, y*y*u+x*z*u, y^2*z+y*z^2) -- has the betti nums as in Roos
+R = S/I
+betti res coker presentation R
+
+mA = aInfinity R;
+mG = aInfinity(mA,coker vars R, LengthLimit =>4) 
+K = select(keys mA, k->class k_0 === ZZ)
+
+elapsedTime F = burke(coker vars R,6)
+assert(F.dd^2 == 0)
+testAInfinity mA
+--another test
+S = ZZ/101[a..d]
+R = S/(ideal gens S)^ 2
+elapsedTime mA = aInfinity R;
+testAInfinity mA
+///
+
 
 testAInfinity = method()
 testAInfinity HashTable := Boolean => mA -> (
@@ -770,35 +572,6 @@ if n >= 2 then (
     if not t then (<<"mA_2 failed."<<endl; return false)
 ))
 
- 
-
-///
-restart
-debug loadPackage "AInfinity"
-check "AInfinity"
-///
-
-
-///
-S = ZZ/101[a..d]
-R = S/(ideal gens S)^ 2
-elapsedTime mA = aInfinity R;
-testAInfinity mA
-///
-
-
-///
-restart
-debug loadPackage("AInfinity", Reload => true)
-kk = ZZ/101
-S = kk[a,b,c]
-R = S/ideal"a2-bc,b2,c2,ab,ac"
-H = aInfinity R;
-K = sort select(keys H, k->class k === List)
-for k in K do <<k<<" "<< picture(H#k)<< betti H#k <<endl;
-H#{2,{2,3}}
-H#{2,{3,2}}
-///
 
 picture = method()
 picture Matrix := (M1) -> (
@@ -865,7 +638,6 @@ extractBlocks(Matrix, List) := Matrix => (phi, src) ->(
 	   }
     )
 
-
 extractBlocks(Matrix, List, List) := Matrix => (phi, tar, src) ->(
     -- returns the submatrix corresponding to the block or blocks listed in src and tar.
     -- src and tar are lists of integers or lists of such lists,
@@ -883,27 +655,6 @@ extractBlocks(Matrix, List, List) := Matrix => (phi, tar, src) ->(
 	   )
     )
     
-///
-restart
-loadPackage("AInfinity", Reload => true)
-kk = ZZ/5
-S = kk[a,b,c]
-R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
-K = koszul vars R
-M = coker K.dd_3
-E = burke(R,M,5)
-E.dd^2
-apply(length E, i-> prune HH_(i)E)
-E.dd_2
-picture E.dd_2
-displayBlocks E.dd_2
-extractBlocks(E.dd_2,{1},{2,0})
-picture extractBlocks(E.dd_2,{1},{{2},{2,0}})
-
-
-displayBlocks E.dd_4
-betti E.dd_4
-///
 
 labels := method()
 labels Module := List => M -> (
@@ -1036,7 +787,9 @@ labeledTensorComplex List := Complex => o -> L -> (
     if #L == 1 and class L_0 === Complex then (
 	B := L_0;
 	F := for i from min B to max B list labeler({i}, B_i);
-	return complex(for i from min B to max B -1 list 
+	return if length B == 0 then return complex({labeler({min B}, B_(min B))}, Base => min B) 
+	    else
+	        return complex(for i from min B to max B -1 list 
 	        map(F_(i-min B),F_(i+1-min B), B.dd_(i+1)),
 		Base => min B)
         );
@@ -1044,7 +797,7 @@ labeledTensorComplex List := Complex => o -> L -> (
     Min := apply(L, C->min C);
     Max := apply(L, C->max C);
     limit := if o.LengthLimit =!= null then o.LengthLimit else sum Max;
-    modules := apply(#L + limit -1 - sum Min, i ->(
+    modules := apply(max(1, #L + limit -1 - sum Min), i ->(  -- the max(1,...) added 12/29
 	    d := i+sum Min;
 	    com := select(compositions(p,d), c -> 
 		    all(p, i-> Min_i <= c_i and c_i <= min(limit, Max_i)) and c != {});
@@ -1058,7 +811,7 @@ labeledTensorComplex List := Complex => o -> L -> (
 suitable := v-> if min v == 0 then position (v, vv -> vv == 1) else null;
      -- v is a list of ZZ. returns null unless v has the form
      -- {0...0,1,0..0}, in which case it returns the position of the 1.
-    
+    if #modules == 0 then error();
     if #modules == 1 then return complex({map(S^0,directSum(1:(modules_0_0)),0)}, Base => sum Min -1);
     
     d := for i from 0 to #modules -2 list(	
@@ -1077,7 +830,6 @@ suitable := v-> if min v == 0 then position (v, vv -> vv == 1) else null;
 			if p === null then 0 
 			else(
 			    sign := (-1)^(sum(indsrc_(toList(0..p-1)))); -- was p
-			    --print(i,j,k,p,sign);
 			    phi := sign*(
 			    (tensor(S, apply(p, q -> L_q_(indtar_q))))
 			    **
@@ -1139,36 +891,112 @@ isComplexMap = D -> (
 	))
 
 beginDocumentation()
+///
+uninstallPackage "AInfinity"
+restart
+installPackage "AInfinity"
+check "AInfinity"
+///
 
 doc ///
 Key
   AInfinity
 Headline
-  Compute the A-infinity structures on free resolutions
+  A-infinity algebra and module structures on free resolutions
 Description
   Text
-   Following Burke's paper "Higher Homotopies and Golod Rings":
-   Given an S-free resolution A -> R = S/I, set B = A_+[1] (so that B_m = A_(m-1) for m >= 2, B_i = 0 for i<2),
-   and alternate differentials have changed sign.
-   
-   The A-infinity structure  is a sequence of degree -1 maps m_n: B^(**n) \to B such that
-   m_1 is the differential, 
-   mR2 is the multiplication (which is a homotopy B**B \to B lifting the degree -2 map
-   d**1 - 1**d: B_2**B_2 \to B_1 (which induces 0)
-       
-   m_n for n>2 is a homotopy for the negative of the sum of degree -2 maps of the form
-   m_(n-i+1)(1**...** 1 ** m_i ** 1 **..**),
-   with inserting m_i into each possible (consecutive) sub product, and i = 2...n-1.
-   Here m_1 represents the differential both of B and of B^(**n).
+   Following Burke's paper "Higher Homotopies and Golod Rings",
+   given a polynomial ring S and a factor ring R = S/I and an R-module X,
+   we compute (finite) A-infinity algebra structure mR on an S-free resolution of R
+   and the A-infinity mR-module structure on an S-free resolution of X, and use them to
+   give a finite computation of the maps in an R-free resolution of X that we calle the
+   Burke resolution.
+   Here is an example with the simplest Golod non-hypersurface in 3 variables
   Example
-   I = Grassmannian(1,5, CoefficientRing => ZZ/32003); numgens(I)
-   S = ring(I)
-   M = S^1/I
-   R = S/I
-   
-   A = freeResolution M; betti A
-   B = (complex apply(length A - 1, i -> -A.dd_(i+2)))[-2];
+   S = ZZ/101[a,b,c]
+   R = S/(ideal(a)*ideal(a,b,c))
+   mR = aInfinity R;
+   res coker presentation R
+   mR#{2,2}
+  Text
+   Given a module X over R, Jesse Burke constructed a possibly non-minimal R-free resolution
+   of any length from the finite data mR and mX:
+  Example
+   X = coker vars R
+   A = betti burke(X,8)   
+   B = betti res(X, LengthLimit => 8)
+   A == B
 SeeAlso
+ aInfinity
+///
+
+doc///
+Key
+ aInfinity
+Headline
+ aInfinity algebra and module structures on free resolutions
+Description
+ Text
+   Given an S-free resolution of  R = S/I, set B = A_+[1] (so that B_m = A_(m-1) for m >= 2, B_i = 0 for i<2),
+   and differentials have changed sign.
+   
+   The A-infinity algebra structure 
+   is a sequence of degree -1 maps 
+   
+   mR#u: B_(u_1)**..**B_(u_t) -> B_(sum u -1), for sum u <= 2 + (pd_S R), and thus,
+   since each u_i>= 2, for t <= 1 + (pd_S R)//2.
+   
+   where u is a List of integers \geq 2, such that
+   
+   mR#{v}: B_v -> B_(v-1) is the differential of B,
+   
+   mR#{v_1,v_2} is the multiplication (which is a homotopy B**B \to B lifting the degree -2 map
+   d**1 - 1**d: B_2**B_2 \to B_1 (which induces 0 in homology)
+       
+   mR#u for n>2 is a homotopy for the negative of the sum of degree -2 maps of the form
+   (+/-) mR(1**...** 1 ** mR ** 1 **..**),
+   inserting m into each possible (consecutive) sub product, and i = 2...n-1.
+   Here m_1 represents the differential both of B and of B^(**n).
+   
+   Given mR, a similar description holds for the A-infinity module structure mX on the
+   S-free resolution of an R-module X.
+ Example
+   S = ZZ/101[a,b,c]
+   R = S/(ideal(a)*ideal(a,b,c))
+   mR = aInfinity R;
+   res coker presentation R
+   mR#{2,2}
+   X = coker map(R^2,R^{2:-1},matrix{{a,b},{b,c}})
+
+   betti burke(X,8)   
+   betti res(X, LengthLimit =>8)
+   Y = image presentation X
+   burke(Y,8)
+SeeAlso
+ aInfinity
+///
+
+///
+--should be useful for the ex sections of extractBl and picture and displayBlo
+restart
+loadPackage("AInfinity", Reload => true)
+kk = ZZ/5
+S = kk[a,b,c]
+R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
+K = koszul vars R
+M = coker K.dd_3
+E = burke(M,5)
+E.dd^2
+apply(length E, i-> prune HH_(i)E)
+E.dd_2
+picture E.dd_2
+displayBlocks E.dd_2
+extractBlocks(E.dd_2,{1},{2,0})
+picture extractBlocks(E.dd_2,{1},{{2},{2,0}})
+
+
+displayBlocks E.dd_4
+betti E.dd_4
 ///
 
 
@@ -1178,6 +1006,59 @@ TEST ///
 ///
 
 TEST///
+--case of rings and/or modules whose projective dimension over S is 1.
+   S = ZZ/101[a,b,c]
+   R = S/(ideal a)
+   mR = aInfinity R
+   assert (#keys mR == 3)
+   --
+   use S
+   R = S/(ideal(a)*ideal(a,b,c))
+   Y = R^1/a
+   mR = aInfinity R
+   aInfinity(mR,Y)
+   F = burke(Y,8)
+assert(F.dd^2 == 0)
+assert(all(7, i-> prune HH_(i+1)F == 0))
+///
+
+///
+restart
+loadPackage( "AInfinity", Reload => true)
+///
+TEST///kk = ZZ/101
+S = kk[a,b,c]
+R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
+K = koszul vars R
+M = coker K.dd_2
+F = res(M, LengthLimit => 5)
+N = coker F.dd_5 ;
+mA = aInfinity R;
+mG = aInfinity(mA,N);
+assert(betti burke(N,5) == betti res (N, LengthLimit => 5))
+assert(F.dd^2 == 0)
+assert all(length F -1, i-> prune HH_(i+1)F == 0)
+///
+
+///
+restart
+loadPackage("AInfinity", Reload => true)
+///
+TEST///
+S = ZZ/101[a..d]
+R = S/ideal"a3,b3,c3,d3"
+mA = aInfinity R;
+--tensorCommutativity(M,N): M**N --> N**M.
+B = mA#"resolution"
+--m{2,2} is skew-symmetric, mimicking A_1**A_1 -> A_2
+assert (0==mA#{2,2}+mA#{2,2}*tensorCommutativity (B_2,B_2)) -- anti-commutative
+assert (0==mA#{3,3}-mA#{3,3}*tensorCommutativity (B_3,B_3)) -- commutative
+assert (0==mA#{3,2}+mA#{2,3}*tensorCommutativity (B_3,B_2)) -- this seems wrong;I would have thought that 2,3 should commute.
+///
+
+
+TEST///
+debug needsPackage"AInfinity"
 S = ZZ/101[a,b,c]
 K = complex koszul vars S
 KK = labeledTensorComplex{K,K}
@@ -1217,6 +1098,7 @@ assert(indices C == {A,B})
 ///
 
 TEST///
+debug needsPackage"AInfinity"
 S = ZZ/101[a,b,c]
 K' = complex koszul vars S
 
@@ -1245,29 +1127,33 @@ I = ideal"x2,y2,z2"*(ideal vars S)
 R =S/I
 mA = aInfinity R
 mG = aInfinity(mA,coker vars R)
-F = burke(R,coker vars R,6)
+F = burke(coker vars R,6)
 assert (F.dd^2==0)
 assert all(5, i-> prune HH_(i+1)F == 0)
+///
 
-picture (F.dd_2*F.dd_3)
-mapComponents {2,1}
-A1 = extractBlocks(F.dd_3, {{2,0}},{{2,1}})
-A2 = extractBlocks(F.dd_3, {{2}},{{2,1}})
-
-B1 = extractBlocks(F.dd_2, {{1}}, {{2,0}})
-B2 = extractBlocks(F.dd_2, {{1}},{{2}})
-
-C1 = B1*A1
-C2 = B2*A2
-C1-C2
+///
+restart
+loadPackage("AInfinity", Reload => true)
+///
+TEST///
+kk = ZZ/101
+S = kk[a,b,c,d]
+R = S/(ideal(a,b,c,d))^2
+--R = S/ideal"a3,b3,c3"
+mA = aInfinity R
+K = koszul vars R
+apply(3,i-> aInfinity (mA,coker K.dd_(i+1)));
 ///
 
 end--
 ///
+debug needsPackage"AInfinity"
 --necessity of double labeling:
 C = labeler(A,S^1) ++ labeler(B,S^2)
 componentsAndIndices C
 picture id_C
+
 --but
 C_[A]
 --does not work!
