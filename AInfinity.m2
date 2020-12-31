@@ -72,6 +72,11 @@ apply(C, c -> labeledDirectSum c))
 
 mapComponents = method()
 mapComponents List := List => u -> (
+    --this serves for construction of the A-infinity structure on the resolution of a module 
+    --AND for the construction of the differentials in the burke resolution. 
+    --Only the last line differs from the program algebraMapComponents,
+    --which has no distinguished last factor.
+    
     --u = {u_0..u_n}; for i<n, u_i represents a free module in B, the truncated, shifted res of R^1; 
     --u_n represents a free module in G, the S-resolution of the R-module M.
     --output is a list whose elements have the form 
@@ -93,6 +98,41 @@ mapComponents List := List => u -> (
     L := L0|L1;
     select(L, LL -> all (drop(LL_3,-1), p -> p >= 2) and last LL_3 >= 0)
     )
+
+algebraMapComponents = method()
+algebraMapComponents List := List => u -> (
+    --this version is for the construction of the AInfinity algebra structure on a truncated,
+    --shifted resolution of R = S/I. Only the last line differs from the program mapComponents,
+    --which has a distinguished last factor with a different lower bound
+    
+    --u = {u_0..u_n}; u_i represents a free module in B, the truncated, shifted res of R^1; 
+    --output is a list whose elements have the form 
+    --{sign, p,q,{v_0..v_m}} corresponding to
+    --a map with
+    --target =  {v_0..v_m} = {u_0..u_(p-1), v_p, u_(q+1)..u_n}
+    --that collapses
+    --u_p..u_q to a single index v_p = -1+sum(for i from p to q list u_i), 
+    --where sign is (-1)^sum(apply p, i->u_i).
+    --We require also v_0..v_(m-1)>=2; otherwise this is not 
+    --the index of a module to which we can apply m. 
+    
+    sign := p-> (-1)^(sum apply(p, i->u_i)); -- indices from 0 to p-1
+    n := #u;
+    L0 := apply(n, p-> {sign p, p, p, u_{0..p-1}|{u_p-1}|u_{p+1..n-1}});
+    L1 := flatten apply(n, p -> for q from p+1 to n-1 list 
+	      {sign p, p,q,
+		  u_{0..p-1}|{-1+sum for i from p to q list u_i}|u_{q+1..n-1}});
+    L := L0|L1;
+    select(L, LL -> all (last LL, p -> p >= 2))
+    )
+///
+restart
+debug needsPackage "AInfinity"
+u = {2,2,3,4}
+mapComponents u
+netList algebraMapComponents u
+
+///
 
 mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
     --The output is a list D_1..D_len
@@ -175,14 +215,14 @@ m#"resolution" = B;
 
 limit := 1+max B;
 if o.LengthLimit =!= null then limit = o.LengthLimit;
+BB := hashTable for t from 1 to limit//2 list t => labeledTensorComplex(toList(t:B), LengthLimit => limit);
 
 --m#{u_1}
-mA := new MutableHashTable;
 --apply(1+length B , i-> m#{i+2} = - A.dd_(i+1));
 apply(1+length B , i-> m#{i+2} = B.dd_(i+2));
 
 --m#{u_1,u_2}
-B2 := labeledTensorComplex({B,B}, LengthLimit => limit);
+B2 := BB#2; -- labeledTensorComplex({B,B}, LengthLimit => limit);
 A0 := complex {A_0};
 d1 := map(A_0, B_2, A.dd_1); --the positive sign is a literal interpretation of Burke
 d1d1 := hashTable for i from min B to max B2 -2 list 
@@ -191,7 +231,7 @@ d1d1 := hashTable for i from min B to max B2 -2 list
 D := map(labeledTensorComplex{A0,B},B2,d1d1, Degree => -2);
 assert (isComplexMap D);
 m0 := nullHomotopy D;
-for i from 4 to 1+(concentration B)_1 do(
+for i from 4 to limit do(
     (C,K) := componentsAndIndices B2_i;
     for k in K do (
 	k' := {k_0+k_1-1};
@@ -201,6 +241,7 @@ for i from 4 to 1+(concentration B)_1 do(
 	)
     );
 
+-*
 --m#{u_1..u_3}	                    
 B3 := labeledTensorComplex(toList(3:B),LengthLimit => limit);
 e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
@@ -230,8 +271,46 @@ for i from 3*2 to min(limit, 1+max B) do(
         m#k = map(B_(i-1), B3_i, m3*B3_i^[k])
 	)
      );
+*-
+--m#{u_1..u_t}
+--note: limit == max B + 1; 
+
+for t from 3 to limit//2 do(
+    Bt := BB#t;
+    con := concentration Bt;
+    for i from con_0 to con_1 do(
+	(C,K) := componentsAndIndices Bt_i;
+	for k in K do (
+	    if sum k>limit then m#k = map(B_(i-1), Bt_i, 0) 
+	    else (
+--	    error();
+	    U := select(algebraMapComponents k, v -> #v_3>1);
+    	    dm := - sum(
+		for v in U list (
+		k1 := k_{0..v_1-1};
+		k2 := k_{v_1..v_2};
+		k3 := k_{v_2+1..#k-1};
+		fac1 := tensor(S,apply(k1, ell -> B_ell));
+		fac3 := tensor(S,apply(k3, ell -> B_ell));
+	        v_0 * m#(v_3)_[v_3]*(fac1 ** (m#k2)_[k2] ** fac3)
+		)
+	    );
+	    mk := dm//B.dd_(i-1);
+            m#k = map(B_(i-1), Bt_i, mk*Bt_i^[k])
+	)
+    )));
 hashTable pairs  m
 )
+
+///
+--work on aInfinity Ring
+restart
+debug loadPackage "AInfinity"
+r = 7
+S = ZZ/101[x_1..x_r]
+R = S/ideal apply(numgens S, i->(S_i)^3)
+mR = aInfinity R;
+///
 
 aInfinity(HashTable, Module) := HashTable => o -> (mR, M) -> (
     --R = ring M should be a factor ring of a polynomial ring S
@@ -933,8 +1012,23 @@ SeeAlso
 doc///
 Key
  aInfinity
+ (aInfinity, Ring)
+ (aInfinity, HashTable, Module)
 Headline
  aInfinity algebra and module structures on free resolutions
+Usage
+ mR = aInfinity R
+ mX = aInfinity(mR, X)
+Inputs
+ R:Ring
+  of the form S/I, where S is a polynomial ring
+ mR:HashTable
+  output of aInfinity R
+Outputs
+ mR:HashTable
+  A-infinity algebra structure on res coker presentation R
+ mX:HashTable
+  A-infinity module structure over mR on res pushForward(map(R,S),M)
 Description
  Text
    Given an S-free resolution of  R = S/I, set B = A_+[1] (so that B_m = A_(m-1) for m >= 2, B_i = 0 for i<2),
@@ -964,10 +1058,15 @@ Description
    S = ZZ/101[a,b,c]
    R = S/(ideal(a)*ideal(a,b,c))
    mR = aInfinity R;
+   keys mR
    res coker presentation R
+   mR#"resolution"
    mR#{2,2}
    X = coker map(R^2,R^{2:-1},matrix{{a,b},{b,c}})
-
+   mX = aInfinity(mR,X)
+ Text
+   Jesse Burke showed how to use mR,mX to make an R-free resolution
+ Example
    betti burke(X,8)   
    betti res(X, LengthLimit =>8)
    Y = image presentation X
