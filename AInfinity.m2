@@ -20,7 +20,9 @@ export {
     "componentsAndIndices",
     "picture",
     "displayBlocks",
-    "extractBlocks"
+    "extractBlocks",
+    --symbols
+    "Check"
     }
 
 ///
@@ -34,14 +36,16 @@ restart
 debug loadPackage "AInfinity"
 ///
 
-burke = method()
-burke(Module, ZZ) := Complex => (M,len) ->(
+burke = method(Options=>{Check => true})
+burke(Module, ZZ) := Complex => o-> (M,len) ->(
     --put the map components together into what should be a complex.
     R := ring M;
     mA := aInfinity R;
     mG := aInfinity(mA,M);
     D := mapComponents(mA,mG,len);
-    labeledTensorComplex(R,complex(D/sum))
+    F:=labeledTensorComplex(R,complex(D/sum));
+    if o.Check == true then assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
+    F
     )
 
 burkeData = method()
@@ -172,16 +176,19 @@ mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
 		    (F_(t-1))_[u_{0..p-1}|{-1+sum u_{p..q}}|u_{q+1..numRComponents}]*
 		    (if q<numRComponents 
 		     then 
-		        tensor (S, for i from 0 to p-1 list 
-			    B_(u_i))**
-	 		    mA#(u_{p..q})**
-	 		    tensor(S, for i from q+1 to numRComponents-1 list B_(u_i))**
-	 		    G_(u_numRComponents)
+		        tensor (S, for i from 0 to p-1 list B_(u_i))
+			**
+	 		mA#(u_{p..q})
+			**
+	 		tensor(S, for i from q+1 to numRComponents-1 list B_(u_i))
+			**
+	 		G_(u_numRComponents)
                      else
-	     		tensor(S, for i from 0 to p-1 list B_(u_i))**
+	     		tensor(S, for i from 0 to p-1 list B_(u_i))
+			**
 	     		mG#(u_{p..q})
-		    )*
-		    (F_t)^[u])
+		    )*(F_t)^[u])
+		    
              ))))
     )
 
@@ -222,6 +229,7 @@ BB := hashTable for t from 1 to limit//2 list t => labeledTensorComplex(toList(t
 apply(1+length B , i-> m#{i+2} = B.dd_(i+2));
 
 --m#{u_1,u_2}
+if limit//2 >= 2 then(
 B2 := BB#2; -- labeledTensorComplex({B,B}, LengthLimit => limit);
 A0 := complex {A_0};
 d1 := map(A_0, B_2, A.dd_1); --the positive sign is a literal interpretation of Burke
@@ -239,7 +247,7 @@ for i from 4 to limit do(
 	       (B_(i-1))^[k']*m0_i*(B2_i)_[k]
 	        )
 	)
-    );
+    ));
 
 -*
 --m#{u_1..u_3}	                    
@@ -296,9 +304,10 @@ for t from 3 to limit//2 do(
 		)
 	    );
 	    mk := dm//B.dd_(i-1);
-            m#k = map(B_(i-1), Bt_i, mk*Bt_i^[k])
-	)
-    )));
+            m#k = map(B_(i-1), target Bt_i^[k], mk)  -- was map(,Bt_i, mk*Bt_i^[k]. 
+	                                              -- But m#k should have source =
+						      -- tensor(S,apply(k, kk-> B_kk))
+    ))));
 hashTable pairs  m
 )
 
@@ -309,7 +318,7 @@ debug loadPackage "AInfinity"
 r = 7
 S = ZZ/101[x_1..x_r]
 R = S/ideal apply(numgens S, i->(S_i)^3)
-mR = aInfinity R;
+time mR = aInfinity R;
 ///
 
 aInfinity(HashTable, Module) := HashTable => o -> (mR, M) -> (
@@ -969,6 +978,47 @@ isComplexMap = D -> (
         (B.dd_(i+deg)*D_i  ==  D_(i-1)*A.dd_i)
 	))
 
+eagonSymbols = method()
+eagonSymbols(ZZ,ZZ) := List => (n,i) ->(
+    --symbol of the module Y^n_i, as a list of pairs, defined inductively from n-1,i+1 and n-1,0
+    --assumes large number of vars and pd.
+    if n === 0 then return {(i,{})};
+    if i === 0 then return eagonSymbols(n-1,1);
+    e' := eagonSymbols (n-1,0);
+    e'1 := apply (e', L -> L_1|{i});
+    eagonSymbols(n-1,i+1)|apply (#e', j-> (e'_j_0,e'1_j))
+    )
+golodSymbols = n -> eagonSymbols(n,0)
+
+golodBetti = method()
+golodBetti (ChainComplex, ChainComplex, ZZ) := BettiTally => (F,G,b) ->(
+    --F,G finite free complexes (resolutions) over a ring S.
+    --Compute the Betti table of what should be the Eagon resolution of 
+    --the module resolved by G over the ring resolved by F
+    --up to step b.
+    symbs := apply(b+1, n->golodSymbols n);
+    mods := apply(symbs, s -> 
+	directSum apply(#s, 
+	    i-> G_(s_i_0)**tensor(ring F, apply(s_i_1, j->F_(j))))); -- was tensorL
+   betti chainComplex apply(b,i->map(mods_i,mods_(i+1),0))
+   )
+
+golodBetti (Module,ZZ) := BettiTally => (M,b) ->(
+    --case where M is a module over a factor ring R = S/I,
+    --MS is the same module over S
+    --F = res I
+    --K = res MS
+    R := ring M;
+    p := presentation R;
+    S := ring p;
+    phi1 := substitute(presentation M, S);
+    phi := phi1 | target phi1 ** p;
+    MS := prune coker phi;
+    K := res MS;
+    F := res coker p;
+    golodBetti(F,K,b)
+    )
+
 beginDocumentation()
 ///
 uninstallPackage "AInfinity"
@@ -1014,6 +1064,7 @@ Key
  aInfinity
  (aInfinity, Ring)
  (aInfinity, HashTable, Module)
+ [aInfinity, LengthLimit]
 Headline
  aInfinity algebra and module structures on free resolutions
 Usage
@@ -1054,6 +1105,9 @@ Description
    
    Given mR, a similar description holds for the A-infinity module structure mX on the
    S-free resolution of an R-module X.
+   
+   With the optional argument LengthLimit => n, only those A-infinity maps are constructed that
+   would be used to compute the resolution of a module of projective dimension n-1.
  Example
    S = ZZ/101[a,b,c]
    R = S/(ideal(a)*ideal(a,b,c))
@@ -1073,6 +1127,69 @@ Description
    burke(Y,8)
 SeeAlso
  aInfinity
+References
+ Jesse Burke, Higher Homotopies and Golod Rings. arXiv:1508.03782v2, October 2015.
+///
+
+doc ///
+Key
+ burke
+ (burke, Module, ZZ)
+ [burke,Check]
+Headline
+ compute a resolution from A-infinity structures
+Usage
+ F = burke(M,len)
+Inputs
+ M:Module
+  over a factor ring R/I
+ len:ZZ
+  length of resolution desired
+Outputs
+ F:Complex
+  resolution of M over R, of length len
+Description
+  Text
+   The construction follows the recipe in Jesse Burke's paper.
+   The resolution produced is minimal iff M is a Golod module.
+   if the optional argument Check => true then the program checks
+   that the differential produced squares to 0 and that the complex
+   is acyclic. The default is Check => false.
+  Example
+   S = ZZ/101[x_1..x_4]
+   I = x_1^2*ideal(vars S)
+   R = S/I
+   M = R^1/ideal(x_1..x_3)
+   F = burke(M, 4, Check =>true)
+  Text
+   the function golodBetti displays the Betti table of the resolution
+   that would be constructed by burke, without actually making the construction.
+  Example
+   golodBetti (M,12)
+   betti F
+  Text
+   The advantage of resolutions computed from A-infinity structures
+   is the decomposition of the differential into blocks corresponding
+   to tensor products of the modules in the finite resolutions. In the 
+   following display, the symbol {u_1..u_n} denotes B_(u_1)**..**B_(u_(n-1))**G_(u_n),
+   where G is the S-free resolution of M and B is the truncated shift of the S-free resolution
+   A of R^1: that is, B_i = A_(i-1), i = 2...length A.
+  Example
+   picture F
+  Text
+   the functions displayBlocks and extractBlocks allow the examination of thes submatrices.
+  Example
+   displayBlocks F.dd_2
+   extractBlocks(F.dd_4, {{2,1}},{{3,1},{2,2}})
+References
+ Jesse Burke, Higher Homotopies and Golod Rings. arXiv:1508.03782v2, October 2015.
+SeeAlso
+ aInfinity
+ golodBetti
+ picture
+ extractBlocks
+ displayBlocks
+Subnodes
 ///
 
 ///
@@ -1089,13 +1206,41 @@ E.dd^2
 apply(length E, i-> prune HH_(i)E)
 E.dd_2
 picture E.dd_2
-displayBlocks E.dd_2
+
 extractBlocks(E.dd_2,{1},{2,0})
 picture extractBlocks(E.dd_2,{1},{{2},{2,0}})
 
 
 displayBlocks E.dd_4
 betti E.dd_4
+///
+
+--Boundary cases: 1 variable, ring as module.
+///
+restart
+needsPackage "AInfinity"
+check "AInfinity"
+///
+--ring and module have pdim 1
+TEST///
+S = QQ[t]
+R = S/t^3
+M = R^1/t^2
+F = burke(M, 5)
+assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
+
+--resolution of the ring as module
+M = R^1
+F = burke(M,5) -- a nonminimal resolution!
+F.dd
+assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
+
+--ring is Golod, module is pdim 1
+S = ZZ/101[s,t,u,v]
+R = S/(s*ideal(s,t,u,v))
+M = R^1/s
+F = burke(M,5, Check=>false)
+assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 ///
 
 
@@ -1245,7 +1390,22 @@ K = koszul vars R
 apply(3,i-> aInfinity (mA,coker K.dd_(i+1)));
 ///
 
+TEST///
+--a long resolution with more vars, pd M small
+S = ZZ/101[x_1..x_5]
+I = x_1*ideal(vars S)
+R = S/I
+M = R^1/ideal(x_1..x_3)
+F = burke(M, 8, Check =>false)
+assert(F.dd^2 == 0)
+assert all(length F - 1, i-> prune HH_(i+1)F == 0)
+///
+
 end--
+
+restart
+needsPackage "AInfinity"
+check "AInfinity"
 ///
 debug needsPackage"AInfinity"
 --necessity of double labeling:
@@ -1281,7 +1441,6 @@ Is there an analogue for the higher products?
 can we call SchurComplexes?
 
 add associativities
-
 
 Note: from "Grammarly":
 "Labeled and labelled are both correct spellings, 
@@ -1409,4 +1568,23 @@ isGolod(S/I), isHomologyAlgebraTrivial(H))
 
 --needs 1459.9 sec
 --elapsedTime kSS(S/I6, 8) == {4, 5, 6, 7}
+
+---------
+restart
+needsPackage "AInfinity"
+---
+S = ZZ/101[x_1..x_5]
+I = x_1*ideal(vars S)
+R = S/I
+M = R^1/ideal(x_1..x_3)
+
+time F = burke(M, 8, Check =>false)
+time F = burke(M, 8, Check =>true)
+time res(M, LengthLimit => 8) -- 100 times faster!
+picture F
+assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
+F = burke(M',5)
+assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
+picture F'
+///
 
