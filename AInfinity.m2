@@ -17,7 +17,6 @@ export {
     "aInfinity",
     "burke",
     "golodBetti",
-    "componentsAndIndices",
     "picture",
     "displayBlocks",
     "extractBlocks",
@@ -300,7 +299,7 @@ for t from 3 to limit//2 do(
 		k3 := k_{v_2+1..#k-1};
 		fac1 := tensor(S,apply(k1, ell -> B_ell));
 		fac3 := tensor(S,apply(k3, ell -> B_ell));
-	        v_0 * m#(v_3)_[v_3]*(fac1 ** (m#k2)_[k2] ** fac3)
+	        v_0 * m#(v_3)*(fac1 ** (m#k2) ** fac3)
 		)
 	    );
 	    mk := dm//B.dd_(i-1);
@@ -312,13 +311,19 @@ hashTable pairs  m
 )
 
 ///
---work on aInfinity Ring
+--work on aInfinity Module
 restart
 debug loadPackage "AInfinity"
-r = 7
+r = 5
 S = ZZ/101[x_1..x_r]
-R = S/ideal apply(numgens S, i->(S_i)^3)
+R = S/(x_1*ideal apply(numgens S, i->(S_i)^3))
 time mR = aInfinity R;
+M = R^1/((ideal vars R)^2)
+M = coker vars R
+mM = aInfinity(mR,M);
+mM#"resolution"
+burke(M,7)
+picture oo
 ///
 
 aInfinity(HashTable, Module) := HashTable => o -> (mR, M) -> (
@@ -340,21 +345,23 @@ RS := map(R,S);
 
 
 Mres := freeResolution pushForward(RS,M);
-G := complex labeledTensorComplex{Mres};
+--G := complex labeledTensorComplex{Mres};
+G := labeledTensorComplex{Mres};
 m#"resolution" = G;
 limit := if o.LengthLimit =!= null then o.LengthLimit else 1+max G;
 
 --m#u, #u=1
   apply(length G , i-> m#{i+1} = G.dd_(i+1));    
 
+BBG := hashTable for t from 1 to limit//2 list t => labeledTensorComplex(toList(t:B)|{G}, LengthLimit => limit);
 ----m#u, #u=2
-BG := labeledTensorComplex({B,G}, LengthLimit => limit);
+if limit >= 2 then
+BG := BBG#1; -- labeledTensorComplex({B,G}, LengthLimit => limit);
 A0 := complex {A_0};
 d1 := map(A_0, B_2, A.dd_1); -- the positive sign should in any case be the same as in aInfinity Ring.
 dG := hashTable for i from min G to min(limit-2, max G) list
               i+2 => (d1**id_(G_i))*(BG_(i+2))^[{2,i}];
 D := map(A0**G, BG, dG, Degree => -2);
---lo :=null;hi := null;
 (lo,hi) := concentration D;
 for i from lo+1 to hi list
      ( 0 ==
@@ -362,7 +369,6 @@ for i from lo+1 to hi list
 	 );
 
 m0 := nullHomotopy D;
-
 for i from 2 to min(limit, 1+(concentration G)_1) do( --was just 1+(concentration G)_1
     (C,K) := componentsAndIndices BG_i;
     for k in K do (
@@ -371,11 +377,40 @@ for i from 2 to min(limit, 1+(concentration G)_1) do( --was just 1+(concentratio
 	)
     );
 
---m#u, #u=3	                       );
-B2G := labeledTensorComplex (toList(2:B)|{G}, LengthLimit => limit);
+--m#u, u = {u_1..u_t,u_(t+1)}, t>=2.
+
+for t from 2 to limit//2 do (
+Bt := BBG#t; --labeledTensorComplex (toList(2:B)|{G}, LengthLimit => limit);
+    con := concentration Bt;
+    for i from con_0 to con_1 do(
+	(C,K) := componentsAndIndices Bt_i;
+	for k in K do (
+	    if sum k>limit then m#k = map(G_(i-1), Bt_i, 0) 
+	    else (
+--	    error();
+	    U := select(mapComponents k, v -> #v_3>1); -- the case #v3 = 1 would be d m#k
+    	    dm := - sum(
+		for v in U list (
+		k1 := k_{0..v_1-1};
+		k2 := k_{v_1..v_2};
+		k3 := k_{v_2+1..#k-2};
+		k4 := last k; -- this would be k_(#k-1)
+		fac1 := tensor(S,apply(k1, ell -> B_ell));
+		fac3 := tensor(S,apply(k3, ell -> B_ell));
+		fac4 := G_k4;
+		if v_2 == #k-1 
+		    then 
+	        v_0 * m#(v_3)_[v_3]*(fac1 ** (m#k2)_[k2])
+		    else
+	        v_0 * m#(v_3)_[v_3]*(fac1 ** (mR#k2)_[k2] ** fac3 ** fac4)
+		)
+	    );
+	    mk := dm//G.dd_(i-1);
+            m#k = map(G_(i-1), target Bt_i^[k], mk)  
+    ))));
+
+-*
 e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
-
-
 for i from 4 to min(limit, 1+max G) do( -- 4 used to be min B2G, but we changed the def of B
 	(C,K) := componentsAndIndices (B2G_i);
 	for k in K do(
@@ -400,17 +435,17 @@ MM := hashTable apply(e, ee-> (
 			if min(k-e_ell-{2,2,0})<0 then 0 else 
 		       (-1)^(sum k_{0..ell-1}) * m#(k-e_ell) * MM#(e_ell)))
 		   );
-
     	test := dm3%G.dd_(i-1);
 	if test != 0 then (
 	    <<"i = "<<i<<" k = "<<k<<endl;
 	    error"dm failed to lift in aInfinity(Module)"
 	    );
-
 	m3 := dm3//G.dd_(i-1);
-
         m#k = map(G_(i-1), source ((B2G_i)_[k]), m3))
      );
+*- 
+ 
+ 
 hashTable pairs  m)
 
 
@@ -990,8 +1025,8 @@ eagonSymbols(ZZ,ZZ) := List => (n,i) ->(
     )
 golodSymbols = n -> eagonSymbols(n,0)
 
-golodBetti = method()
-golodBetti (ChainComplex, ChainComplex, ZZ) := BettiTally => (F,G,b) ->(
+
+golodBetti0 = (F,G,b) ->(
     --F,G finite free complexes (resolutions) over a ring S.
     --Compute the Betti table of what should be the Eagon resolution of 
     --the module resolved by G over the ring resolved by F
@@ -1003,6 +1038,8 @@ golodBetti (ChainComplex, ChainComplex, ZZ) := BettiTally => (F,G,b) ->(
    betti chainComplex apply(b,i->map(mods_i,mods_(i+1),0))
    )
 
+
+golodBetti = method()
 golodBetti (Module,ZZ) := BettiTally => (M,b) ->(
     --case where M is a module over a factor ring R = S/I,
     --MS is the same module over S
@@ -1016,15 +1053,17 @@ golodBetti (Module,ZZ) := BettiTally => (M,b) ->(
     MS := prune coker phi;
     K := res MS;
     F := res coker p;
-    golodBetti(F,K,b)
+    golodBetti0(F,K,b)
     )
 
 beginDocumentation()
 ///
+restart
 uninstallPackage "AInfinity"
 restart
 installPackage "AInfinity"
 check "AInfinity"
+viewHelp AInfinity
 ///
 
 doc ///
@@ -1190,6 +1229,205 @@ SeeAlso
  extractBlocks
  displayBlocks
 Subnodes
+ Check
+ picture
+ displayBlocks
+ extractBlocks
+///
+doc ///
+Key
+ Check
+Headline
+ Option for burke
+Usage
+ F := burke(M, Check => true)
+Inputs
+ M:Module
+ Check:Boolean
+Outputs
+ F:Complex
+Description
+  Text
+   with Check => true, burke includes lines that check F.dd^2 == 0
+   and also that F is acyclic (as far as it has been computed). 
+   The default value is true.
+  Example
+   R = ZZ/101[a,b,c]/(ideal(a,b,c))^2
+   M = coker vars R
+   elapsedTime burke(M, 7, Check => false)
+   elapsedTime burke(M, 7, Check => true)
+Caveat
+ The Check takes time.
+SeeAlso
+ burke
+///
+
+doc ///
+Key
+ picture
+ (picture, ChainComplex)
+ (picture, Complex)
+ (picture, Matrix)
+ (picture, Module)
+Headline
+ displays information about the blocks of a map or maps between direct sum modules
+Usage
+ picture F
+ picture m
+ picture M
+Inputs
+ F:Complex
+ F:ChainComplex
+ m:Matrix
+  of map between labeled direct sum modules
+ M:Module
+  a labeled directSum module
+Description
+  Text
+   The sources and targets of the differentials in F = burke(M,n), where
+   M is an R = S/I-module, are direct sums
+   whose summands are labeled, each by a List of ZZ corresponding
+   to a tensor product of components of the S-free resolutions of R and M.
+   
+   The maps in the AInfinity structures are similarly labeled (each one has a source
+   that has just one summand.)
+   
+   When applied to such a map, picture prints it as a table, with columns labeled with
+   the symbols associated to the source and rows labeled with the symbols associated to the target.
+   When applied to a complex, the output is a "netList" display of the pictures of each of the maps.
+  Example
+   R = ZZ/101[a,b,c,d]/ideal"a3,a2b2,b4,c4,d2"
+   F = burke(coker vars R, 4)
+   picture F.dd_3
+   picture F
+  Text
+   The possible symbols in the table produced by picture are:
+   
+   . if the corresponding matrix is zero
+   * if the corresponding matrix is nonzero
+   u if the entries of the corresponding matrix contain a unit.
+SeeAlso
+ burke
+ aInfinity
+///
+
+
+doc ///
+   Key
+    golodBetti
+    (golodBetti, Module, ZZ)    
+   Headline
+    list the ranks of the free modules in the resolution of a Golod module
+   Usage
+    B = golodBetti(M,b)    
+   Inputs
+    M:Module
+     R-module
+    b:ZZ
+     homological degree to which to carry the computation
+   Outputs
+    B:BettiTally
+     This would be betti table of the free res of M over R, if M were a Golod module over R
+   Description
+    Text
+     Let S be a standard graded polynomial ring. A module M over R = S/I is Golod if
+     the resolution H of M has maximal betti numbers given the
+     betti numbers of the S-free resolutions F of R and K of M. This resolution, H,
+     has underlying graded module H = R**K**T(B), where B is the truncated resolution
+     F_1 <- F_2... and T(B) is the tensor algebra.
+     
+     Since the component modules of H are given, the computation only requires the computation of
+     the minimal S-free resolution of M, and then is purely numeric;
+     the differentials in the R-free resolution of M are not computed.
+     
+     In case M = coker vars R, the result is the Betti table of the Golod-Shamash-Eagon 
+     resolution of the residue field.
+     
+     We say that M is a Golod module (over R) if the ranks of the free modules in a minimal R-free resolution
+     of M are equal to the numbers produced by golodBetti. Theorems of Levin and Lescot assert that if
+     R has a Golod module, then R is a Golod ring; and that if R is Golod, then the d-th syzygy
+     of any R-module M is Golod for all d greater than or equal to the projective dimension
+     of M as an S-module (more generally, the co-depth of M) (Avramov, 6 lectures, 5.3.2).
+     
+    Example
+     S = ZZ/101[a,b,c]
+     I = (ideal(a,b,c^2))^2
+     F = res(S^1/I)
+     R = S/I
+     F = burke (coker vars R, 6)
+     golodBetti(coker vars R,6)
+     betti res (coker vars R, LengthLimit => 6)
+     betti F
+   SeeAlso
+    burke
+///
+
+doc ///
+Key
+ displayBlocks
+ (displayBlocks, Matrix)
+Headline
+ prints a matrix showing the source and target decomposition
+Usage
+ displayBlocks M
+Inputs
+ M:Matrix
+  with source and target labled direct sums of free modules
+Description
+  Text
+   The maps produced by @TO burke@ and @TO aInfinity@ have direct sums of labeled modules
+   as sources and targets; the label corresponds to the tensor factors.
+   
+   displayBlocks M shows this data
+  Example
+   R = ZZ/101[a,b,c]/(ideal(a,b,c^2))^2
+   F = burke (coker vars R, 4)
+   picture F  
+   displayBlocks F.dd_3
+SeeAlso
+ picture
+ burke
+ extractBlocks
+///
+
+doc ///
+Key
+ extractBlocks
+ (extractBlocks, Matrix, List)
+ (extractBlocks, Matrix, List, List)
+Headline
+ displays components of a map in a labeled complex
+Usage
+ M = extractBlocks(f, sour)
+ M = extractBlocks(f, tar, sour)
+Inputs
+ sour:List
+  list of ZZ, the label of a summand of the source of f
+ sour:List
+  list of ZZ, the label of a summand of the source of f  
+  OR list of lists of ZZ, specifying multiple summands
+ tar:List
+  same as sour, but for the target of f
+Outputs
+ M:Matrix
+  the submatrix specified by tar and sour
+Description
+  Text
+   The terms of the @TO burke@ resolution are direct sums of labeled modules.
+   the function @TO picture@ shows the symbols associated to the summands, while
+   the function extractBlocks provides the submatrix associated with the summands
+   specified.
+  Example
+   R = ZZ/101[a,b,c,d]/ideal(a^2, b^2, c^3, d^4)
+   M = R^1/ideal(a*b,c*d)
+   F = burke(M,5)
+   picture F.dd_3
+   extractBlocks(F.dd_3, {2,1})
+   extractBlocks(F.dd_3,{2,0}, {2,1})
+   extractBlocks(F.dd_3,{2,0}, {{3,0},{2,1}})
+SeeAlso
+   burke
+   picture
 ///
 
 ///
@@ -1392,10 +1630,10 @@ apply(3,i-> aInfinity (mA,coker K.dd_(i+1)));
 
 TEST///
 --a long resolution with more vars, pd M small
-S = ZZ/101[x_1..x_5]
+S = ZZ/101[x_1..x_4]
 I = x_1*ideal(vars S)
 R = S/I
-M = R^1/ideal(x_1..x_3)
+M = R^1/ideal(x_1..x_2)
 F = burke(M, 8, Check =>false)
 assert(F.dd^2 == 0)
 assert all(length F - 1, i-> prune HH_(i+1)F == 0)
