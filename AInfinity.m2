@@ -30,9 +30,6 @@ uninstallPackage "AInfinity"
 restart
 installPackage "AInfinity"
 check AInfinity
-
-restart
-debug loadPackage "AInfinity"
 ///
 
 burke = method(Options=>{Check => true})
@@ -47,184 +44,49 @@ burke(Module, ZZ) := Complex => o-> (M,len) ->(
     F
     )
 
-burkeData = method()
-burkeData(Module,ZZ) := List => (M,n) ->(
---currently (11/26) 
---F = burkeData(M,n) 
---produces the list of the free modules indexed 0..n in the Burke resolution,
---in a form that things like F_5^[{3,2,0}] work (this is the projection).
---output is a list of labeled S-modules, where 
---S = ring presentation ring M.
-R := ring M;
-S := ring presentation R;
-RS := map(R,S);
-G := labeledTensorComplex freeResolution(pushForward(RS, M), LengthLimit=>n);
-A' := freeResolution (coker presentation R, LengthLimit => n-1);
-A'' := labeledTensorComplex(A'[-1]);
-A := A''[1];
-
---B0 the following was trouble in the case length A = 1.
-if length A>1 then 
-    B0 := labeledTensorComplex complex(apply(length A-1, i-> -A.dd_(i+2)),Base =>2)
-    else
-    B0 = labeledTensorComplex complex({A_1}, Base =>2);
-    
-BB := {G}|apply(n//2, i->labeledTensorComplex(toList(i+1:B0)|{G}, LengthLimit => n));
-C := apply(n+1, i-> select(apply(BB,b-> b_i), c -> c != 0));
-apply(C, c -> labeledDirectSum c))
-
-mapComponents = method()
-mapComponents List := List => u -> (
-    --this serves for construction of the A-infinity structure on the resolution of a module 
-    --AND for the construction of the differentials in the burke resolution. 
-    --Only the last line differs from the program algebraMapComponents,
-    --which has no distinguished last factor.
-    
-    --u = {u_0..u_n}; for i<n, u_i represents a free module in B, the truncated, shifted res of R^1; 
-    --u_n represents a free module in G, the S-resolution of the R-module M.
-    --output is a list whose elements have the form 
-    --{sign, p,q,{v_0..v_m}} corresponding to
-    --a map with
-    --target =  {v_0..v_m} = {u_0..u_(p-1), v_p, u_(q+1)..u_n}
-    --that collapses
-    --u_p..u_q to a single index v_p = -1+sum(for i from p to q list u_i), 
-    --where sign is (-1)^sum(apply p, i->u_i).
-    --We require also v_0..v_(m-1)>=2 and v_m>=0; otherwise this is not 
-    --the index of a module in the resolution.
-
-    sign := p-> (-1)^(sum apply(p, i->u_i)); 
-    n := #u-1;
-    L0 := apply(n+1, p-> {sign p, p,p,u_{0..p-1}|{u_p-1}|u_{p+1..n}});
-    L1 := flatten apply(n, p -> for q from p+1 to n list {sign p, p,q,u_{0..p-1}|
-	                         {-1+sum for i from p to q list u_i}|
-		                 u_{q+1..n}});
-    L := L0|L1;
-    select(L, LL -> all (drop(LL_3,-1), p -> p >= 2) and last LL_3 >= 0)
-    )
-
-algebraMapComponents = method()
-algebraMapComponents List := List => u -> (
-    --this version is for the construction of the AInfinity algebra structure on a truncated,
-    --shifted resolution of R = S/I. Only the last line differs from the program mapComponents,
-    --which has a distinguished last factor with a different lower bound
-    
-    --u = {u_0..u_n}; u_i represents a free module in B, the truncated, shifted res of R^1; 
-    --output is a list whose elements have the form 
-    --{sign, p,q,{v_0..v_m}} corresponding to
-    --a map with
-    --target =  {v_0..v_m} = {u_0..u_(p-1), v_p, u_(q+1)..u_n}
-    --that collapses
-    --u_p..u_q to a single index v_p = -1+sum(for i from p to q list u_i), 
-    --where sign is (-1)^sum(apply p, i->u_i).
-    --We require also v_0..v_(m-1)>=2; otherwise this is not 
-    --the index of a module to which we can apply m. 
-    
-    sign := p-> (-1)^(sum apply(p, i->u_i)); -- indices from 0 to p-1
-    n := #u;
-    L0 := apply(n, p-> {sign p, p, p, u_{0..p-1}|{u_p-1}|u_{p+1..n-1}});
-    L1 := flatten apply(n, p -> for q from p+1 to n-1 list 
-	      {sign p, p,q,
-		  u_{0..p-1}|{-1+sum for i from p to q list u_i}|u_{q+1..n-1}});
-    L := L0|L1;
-    select(L, LL -> all (last LL, p -> p >= 2))
-    )
-///
-restart
-debug needsPackage "AInfinity"
-u = {2,2,3,4}
-mapComponents u
-netList algebraMapComponents u
-
-///
-
-mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
-    --The output is a list D_1..D_len
-    --where D_t is a list of  the matrices of maps 
-    --F_t ->comp(u,F_t) -> comp(v, F_(t-1) -> F_(t-1)
-    --where comp(u,F_t) is the component of F_t labeled u
-    --and similarly for v,F_(t-1).
-    --Thus sum D_t will be the map F.dd_t in the Burke resolution.
-    R := mA#"ring";
-    S := ring presentation R;
-    B := mA#"resolution";
-    M := mG#"module";
-    G := mG#"resolution";
-    F := burkeData(M,len); -- the list of labeled free modules
-
-   --Now form the components of the maps. 
-
-      for t from 1 to len list (
-  
-   --First construct vv, the list of valid maps F_t --> F_(t-1).
-	c :=componentsAndIndices F_t;
-	flatten apply(#c_0, s->(
-	    u := c_1_s;
-	--now focus on the maps starting from the u component of F_t
-    	    numRComponents := #u-1;
-    	    vv0 := mapComponents u; -- not all the vv0_i are valid.
-	    (C,K) := componentsAndIndices F_(t-1);	    
-	    vv := select(vv0, v-> member(v_3,K)); 
-	  --for each member v of  vv, the list v_3 is the index of a component
-	  --of F_(t-1) to which the u component maps.
-	  --The rest of v describes the map, as follows:
-    	    for v in vv list (
-		sign := v_0;
-		p := v_1;
-		q := v_2;
-		v_0*map(F_(t-1), F_t, 
-		    (F_(t-1))_[u_{0..p-1}|{-1+sum u_{p..q}}|u_{q+1..numRComponents}]*
-		    (if q<numRComponents 
-		     then 
-		        tensor (S, for i from 0 to p-1 list B_(u_i))
-			**
-	 		mA#(u_{p..q})
-			**
-	 		tensor(S, for i from q+1 to numRComponents-1 list B_(u_i))
-			**
-	 		G_(u_numRComponents)
-                     else
-	     		tensor(S, for i from 0 to p-1 list B_(u_i))
-			**
-	     		mG#(u_{p..q})
-		    )*(F_t)^[u])
-		    
-             ))))
-    )
-
---We should probably break this into pieces, and have a function that produces
---the individual component corresponding to a member v of vv.
-
-
-
-aInfinity = method(Options => {LengthLimit => null})
+aInfinity = method(Options => {LengthLimit => null, Check => true})
 aInfinity Ring := HashTable => o -> R -> (
     --R should be a factor ring of a polynomial ring S
-    --The HashTable returned contains the A-infinity structure on an
-    --S-free resolution A of R up to m_n: B^(**n) --> B
-    --CAVEAT: for the moment n = 3 is fixed! 
---old notation: m#{p,{u_1..u_p}}
---new notation: m#{u_1..u_p}. This is the map that has source
---B_(u_1)**..**B_(u_p), a p-factor tensor product.
+    --An S-free resolution A of R^1 is added to the cache table of R,
+    --along with tensor powers of the truncated shifted resolution
+    --B = A_+[-1].
+    --The HashTable returned contains the A-infinity structure on B
+    --m: B^(**n) --> B up to LengthLimit, which defaults to (1+max B)//2.
+    --the maps m are given on each summand:
+    --m#{u_1..u_p}: B_(u_1)**..**B_(u_p) -> B_(sum u-1)
 
 m := new MutableHashTable;
 m#"ring" = R;
 S := ring presentation R;
 RS := map(R,S);
-A := freeResolution coker presentation R;
-if length A>1 then
-    B := labeledTensorComplex complex(
+if not R.cache#?"resolution" then 
+   R.cache#"resolution" = freeResolution coker presentation R;
+A := R.cache#"resolution";
+
+if length A == 1 
+then
+    B := complex({labeler({2}, A_1)}, Base => 2)
+else
+    B = labeledTensorComplex complex(
         apply(length A-1, i -> 
 	map(A_(i+1), A_(i+2), -A.dd_(i+2))), 
-	Base => 2) 
-    else B = complex({labeler({2}, A_1)}, Base => 2);
+	Base => 2);
 m#"resolution" = B;
 
 limit := 1+max B;
 if o.LengthLimit =!= null then limit = o.LengthLimit;
-BB := hashTable for t from 1 to limit//2 list t => labeledTensorComplex(toList(t:B), LengthLimit => limit);
+
+--if not already present in R, cache the necessary tensor powers of B
+if not R.cache#?"AInfinityLimit"  
+   or R.cache#?"AInfinityLimit" and R.cache#"AInfinityLimit" <limit 
+then  (R.cache#"AInfinityLimit" = limit;
+      R.cache#"BB" = hashTable for t from 1 to limit//2 list 
+           t => labeledTensorComplex(toList(t:B), LengthLimit => limit);
+	   );
+
+BB := R.cache#"BB";
 
 --m#{u_1}
---apply(1+length B , i-> m#{i+2} = - A.dd_(i+1));
 apply(1+length B , i-> m#{i+2} = B.dd_(i+2));
 
 --m#{u_1,u_2}
@@ -248,40 +110,8 @@ for i from 4 to limit do(
 	)
     ));
 
--*
---m#{u_1..u_3}	                    
-B3 := labeledTensorComplex(toList(3:B),LengthLimit => limit);
-e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
-
-for i from 3*2 to min(limit, 1+max B) do(
-        co := select(compositions(3,i,max B), c -> min c >= 2);	
-	for k in co do(
-	    dm3 := -(m#{sum k_{0,1}-1,k_2} * (m#(k_{0,1})**B_(k_2)) + 
-	
-	    (-1)^(k_0)* m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
-        
-	    sum(apply(3, ell -> if min(k-e_ell) <= 1 then 0
-	        else (mm := tensor(S, apply(3, i-> if i == ell then m#(k_{ell}) else B_(k_i)));
-	        (-1)^(sum k_{0..ell-1})*m#(k-e_ell)*mm)))
-                    );
-	       --mm is m#(k_{ell}) tensored with factors B_(k_i) in the appropriate order. eg, 
-	       --for example, if ell = 0,then
-	       --mm = m#(k_{0})**B_(k_1)**B_(k_1)
-
-    	test := dm3%B.dd_(i-1);
-	if test != 0 then (
-	    <<"i = "<<i<<" k = "<<k<<endl;
-	    error"dm failed to lift in aInfinity(Ring)"
-	    );
-
-	m3 := dm3//B.dd_(i-1);
-        m#k = map(B_(i-1), B3_i, m3*B3_i^[k])
-	)
-     );
-*-
 --m#{u_1..u_t}
 --note: limit == max B + 1; 
-
 for t from 3 to limit//2 do(
     Bt := BB#t;
     con := concentration Bt;
@@ -290,7 +120,6 @@ for t from 3 to limit//2 do(
 	for k in K do (
 	    if sum k>limit then m#k = map(B_(i-1), Bt_i, 0) 
 	    else (
---	    error();
 	    U := select(algebraMapComponents k, v -> #v_3>1);
     	    dm := - sum(
 		for v in U list (
@@ -303,28 +132,10 @@ for t from 3 to limit//2 do(
 		)
 	    );
 	    mk := dm//B.dd_(i-1);
-            m#k = map(B_(i-1), target Bt_i^[k], mk)  -- was map(,Bt_i, mk*Bt_i^[k]. 
-	                                              -- But m#k should have source =
-						      -- tensor(S,apply(k, kk-> B_kk))
+            m#k = map(B_(i-1), target Bt_i^[k], mk)  
     ))));
 hashTable pairs  m
 )
-
-///
---work on aInfinity Module
-restart
-debug loadPackage "AInfinity"
-r = 5
-S = ZZ/101[x_1..x_r]
-R = S/(x_1*ideal apply(numgens S, i->(S_i)^3))
-time mR = aInfinity R;
-M = R^1/((ideal vars R)^2)
-M = coker vars R
-mM = aInfinity(mR,M);
-mM#"resolution"
-burke(M,7)
-picture oo
-///
 
 aInfinity(HashTable, Module) := HashTable => o -> (mR, M) -> (
     --R = ring M should be a factor ring of a polynomial ring S
@@ -337,12 +148,11 @@ aInfinity(HashTable, Module) := HashTable => o -> (mR, M) -> (
     
 m := new MutableHashTable;
 m#"module" = M;
-B := mR#"resolution";
 R := ring M;
+B := R.cache#"BB"#1;
 S := ring presentation R;
 A := labeledTensorComplex freeResolution coker presentation R;
 RS := map(R,S);
-
 
 Mres := freeResolution pushForward(RS,M);
 --G := complex labeledTensorComplex{Mres};
@@ -387,7 +197,6 @@ Bt := BBG#t; --labeledTensorComplex (toList(2:B)|{G}, LengthLimit => limit);
 	for k in K do (
 	    if sum k>limit then m#k = map(G_(i-1), Bt_i, 0) 
 	    else (
---	    error();
 	    U := select(mapComponents k, v -> #v_3>1); -- the case #v3 = 1 would be d m#k
     	    dm := - sum(
 		for v in U list (
@@ -405,47 +214,14 @@ Bt := BBG#t; --labeledTensorComplex (toList(2:B)|{G}, LengthLimit => limit);
 	        v_0 * m#(v_3)_[v_3]*(fac1 ** (mR#k2)_[k2] ** fac3 ** fac4)
 		)
 	    );
+	    if o.Check == true then(
+    	        if dm%G.dd_(i-1) != 0 then(
+  	            <<"i = "<<i<<" k = "<<k<<endl;
+	            error"dm failed to lift in aInfinity(Module)"
+	         ));
 	    mk := dm//G.dd_(i-1);
-            m#k = map(G_(i-1), target Bt_i^[k], mk)  
-    ))));
-
--*
-e := apply(3, ell -> toList(ell:0)|{1}|toList(3-ell-1:0));
-for i from 4 to min(limit, 1+max G) do( -- 4 used to be min B2G, but we changed the def of B
-	(C,K) := componentsAndIndices (B2G_i);
-	for k in K do(
-fac := null;
-MM := hashTable apply(e, ee-> (
-   	p := position(ee, j-> j==1);
-	if not((p<2 and mR#?{k_p}) or (p == 2 and m#?{k_p})) 
-	   then ee => S^0 
-           else ee => tensor(S, 
-				 apply(3, j -> (
-				   if j<2 then 
-				       (if ee_j == 0 then fac = B_(k_j) else fac = mR#{k_j});
-		                   if j == 2 then(if ee_j == 0 then fac = G_(k_j) else fac = m#{k_j});
-				      fac)
-				  ))));
-		      
-	dm3 := -( m#{sum k_{0,1}-1,k_2} * (mR#(k_{0,1})**G_(k_2)) +
-	
-	       (-1)^(k_0) * m#{k_0,sum k_{1,2}-1} * (B_(k_0)**m#(k_{1,2})) +
-	       
-	       sum(apply(#e, ell ->
-			if min(k-e_ell-{2,2,0})<0 then 0 else 
-		       (-1)^(sum k_{0..ell-1}) * m#(k-e_ell) * MM#(e_ell)))
-		   );
-    	test := dm3%G.dd_(i-1);
-	if test != 0 then (
-	    <<"i = "<<i<<" k = "<<k<<endl;
-	    error"dm failed to lift in aInfinity(Module)"
-	    );
-	m3 := dm3//G.dd_(i-1);
-        m#k = map(G_(i-1), source ((B2G_i)_[k]), m3))
-     );
-*- 
- 
- 
+            m#k = map(G_(i-1), target Bt_i^[k], mk)
+        ))));
 hashTable pairs  m)
 
 
@@ -624,6 +400,147 @@ for k in K do <<k<<" "<< picture(H#k)<< betti H#k <<endl;
 --note that m{3,{2,2,2}} = 0, since K res R^1 is a DG algebra!
 ///
 
+
+burkeData = method()
+burkeData(Module,ZZ) := List => (M,n) ->(
+--currently (11/26) 
+--F = burkeData(M,n) 
+--produces the list of the free modules indexed 0..n in the Burke resolution,
+--in a form that things like F_5^[{3,2,0}] work (this is the projection).
+--output is a list of labeled S-modules, where 
+--S = ring presentation ring M.
+R := ring M;
+S := ring presentation R;
+RS := map(R,S);
+G := labeledTensorComplex freeResolution(pushForward(RS, M), LengthLimit=>n);
+A' := freeResolution (coker presentation R, LengthLimit => n-1);
+A'' := labeledTensorComplex(A'[-1]);
+A := A''[1];
+
+--B0 the following was trouble in the case length A = 1.
+if length A>1 then 
+    B0 := labeledTensorComplex complex(apply(length A-1, i-> -A.dd_(i+2)),Base =>2)
+    else
+    B0 = labeledTensorComplex complex({A_1}, Base =>2);
+    
+BB := {G}|apply(n//2, i->labeledTensorComplex(toList(i+1:B0)|{G}, LengthLimit => n));
+C := apply(n+1, i-> select(apply(BB,b-> b_i), c -> c != 0));
+apply(C, c -> labeledDirectSum c))
+
+mapComponents = method()
+mapComponents List := List => u -> (
+    --this serves for construction of the A-infinity structure on the resolution of a module 
+    --AND for the construction of the differentials in the burke resolution. 
+    --Only the last line differs from the program algebraMapComponents,
+    --which has no distinguished last factor.
+    
+    --u = {u_0..u_n}; for i<n, u_i represents a free module in B, the truncated, shifted res of R^1; 
+    --u_n represents a free module in G, the S-resolution of the R-module M.
+    --output is a list whose elements have the form 
+    --{sign, p,q,{v_0..v_m}} corresponding to
+    --a map with
+    --target =  {v_0..v_m} = {u_0..u_(p-1), v_p, u_(q+1)..u_n}
+    --that collapses
+    --u_p..u_q to a single index v_p = -1+sum(for i from p to q list u_i), 
+    --where sign is (-1)^sum(apply p, i->u_i).
+    --We require also v_0..v_(m-1)>=2 and v_m>=0; otherwise this is not 
+    --the index of a module in the resolution.
+
+    sign := p-> (-1)^(sum apply(p, i->u_i)); 
+    n := #u-1;
+    L0 := apply(n+1, p-> {sign p, p,p,u_{0..p-1}|{u_p-1}|u_{p+1..n}});
+    L1 := flatten apply(n, p -> for q from p+1 to n list {sign p, p,q,u_{0..p-1}|
+	                         {-1+sum for i from p to q list u_i}|
+		                 u_{q+1..n}});
+    L := L0|L1;
+    select(L, LL -> all (drop(LL_3,-1), p -> p >= 2) and last LL_3 >= 0)
+    )
+
+algebraMapComponents = method()
+algebraMapComponents List := List => u -> (
+    --this version is for the construction of the AInfinity algebra structure on a truncated,
+    --shifted resolution of R = S/I. Only the last line differs from the program mapComponents,
+    --which has a distinguished last factor with a different lower bound
+    
+    --u = {u_0..u_n}; u_i represents a free module in B, the truncated, shifted res of R^1; 
+    --output is a list whose elements have the form 
+    --{sign, p,q,{v_0..v_m}} corresponding to
+    --a map with
+    --target =  {v_0..v_m} = {u_0..u_(p-1), v_p, u_(q+1)..u_n}
+    --that collapses
+    --u_p..u_q to a single index v_p = -1+sum(for i from p to q list u_i), 
+    --where sign is (-1)^sum(apply p, i->u_i).
+    --We require also v_0..v_(m-1)>=2; otherwise this is not 
+    --the index of a module to which we can apply m. 
+    
+    sign := p-> (-1)^(sum apply(p, i->u_i)); -- indices from 0 to p-1
+    n := #u;
+    L0 := apply(n, p-> {sign p, p, p, u_{0..p-1}|{u_p-1}|u_{p+1..n-1}});
+    L1 := flatten apply(n, p -> for q from p+1 to n-1 list 
+	      {sign p, p,q,
+		  u_{0..p-1}|{-1+sum for i from p to q list u_i}|u_{q+1..n-1}});
+    L := L0|L1;
+    select(L, LL -> all (last LL, p -> p >= 2))
+    )
+TEST///
+debug needsPackage "AInfinity"
+u = {2,2,3}
+assert(mapComponents u =={{1, 2, 2, {2, 2, 2}}, {1, 0, 1, {3, 3}}, {1, 0, 2, {6}}, {1, 1, 2, {2, 4}}})
+///
+
+mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
+    --The output is a list D_1..D_len
+    --where D_t is a list of  the matrices of maps 
+    --F_t ->comp(u,F_t) -> comp(v, F_(t-1) -> F_(t-1)
+    --where comp(u,F_t) is the component of F_t labeled u
+    --and similarly for v,F_(t-1).
+    --Thus sum D_t will be the map F.dd_t in the Burke resolution.
+    R := mA#"ring";
+    S := ring presentation R;
+    B := mA#"resolution";
+    M := mG#"module";
+    G := mG#"resolution";
+    F := burkeData(M,len); -- the list of labeled free modules
+
+   --Now form the components of the maps. 
+
+      for t from 1 to len list (
+  
+   --First construct vv, the list of valid maps F_t --> F_(t-1).
+	c :=componentsAndIndices F_t;
+	flatten apply(#c_0, s->(
+	    u := c_1_s;
+	--now focus on the maps starting from the u component of F_t
+    	    numRComponents := #u-1;
+    	    vv0 := mapComponents u; -- not all the vv0_i are valid.
+	    (C,K) := componentsAndIndices F_(t-1);	    
+	    vv := select(vv0, v-> member(v_3,K)); 
+	  --for each member v of  vv, the list v_3 is the index of a component
+	  --of F_(t-1) to which the u component maps.
+	  --The rest of v describes the map, as follows:
+    	    for v in vv list (
+		sign := v_0;
+		p := v_1;
+		q := v_2;
+		v_0*map(F_(t-1), F_t, 
+		    (F_(t-1))_[u_{0..p-1}|{-1+sum u_{p..q}}|u_{q+1..numRComponents}]*
+		    (if q<numRComponents 
+		     then 
+		        tensor (S, for i from 0 to p-1 list B_(u_i))
+			**
+	 		mA#(u_{p..q})
+			**
+	 		tensor(S, for i from q+1 to numRComponents-1 list B_(u_i))
+			**
+	 		G_(u_numRComponents)
+                     else
+	     		tensor(S, for i from 0 to p-1 list B_(u_i))
+			**
+	     		mG#(u_{p..q})
+		    )*(F_t)^[u])
+		    
+             ))))
+    )
 
 
 ///
