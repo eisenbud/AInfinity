@@ -137,6 +137,7 @@ for t from 3 to limit//2 do(
 hashTable pairs  m
 )
 
+    
 aInfinity(HashTable, Module) := HashTable => o -> (mR, M) -> (
     --R = ring M should be a factor ring of a polynomial ring S
     --mR = aInfinity R an AInfinity structure on a resolution A of R
@@ -223,6 +224,9 @@ Bt := BBG#t; --labeledTensorComplex (toList(2:B)|{G}, LengthLimit => limit);
             m#k = map(G_(i-1), target Bt_i^[k], mk)
         ))));
 hashTable pairs  m)
+
+aInfinity Module := HashTable => o -> M ->(
+    aInfinity(aInfinity ring M, M, o)
 
 
 ///
