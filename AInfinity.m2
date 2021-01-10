@@ -227,7 +227,7 @@ hashTable pairs  m)
 
 aInfinity Module := HashTable => o -> M ->(
     aInfinity(aInfinity ring M, M, o)
-
+)
 
 ///
 restart
@@ -1023,6 +1023,7 @@ doc///
 Key
  aInfinity
  (aInfinity, Ring)
+ (aInfinity, Module)
  (aInfinity, HashTable, Module)
  [aInfinity, LengthLimit]
 Headline
