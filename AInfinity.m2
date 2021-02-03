@@ -8,7 +8,7 @@ newPackage(
 	          {Name => "Mike Stillman", 
                   Email => "mike@math.cornell.edu", 
                   HomePage => "http://pi.math.cornell.edu/~mike"}},
-	PackageExports => {"Complexes", "DGAlgebras"},
+	PackageExports => {"Complexes", "DGAlgebras","PushForward","LocalRings"},
         Headline => "AInfinity structures on free resolutions",
         DebuggingMode => true
 	)
@@ -32,7 +32,7 @@ installPackage "AInfinity"
 check AInfinity
 ///
 
-burke = method(Options=>{Check => true})
+burke = method(Options=>{Check => false})
 burke(Module, ZZ) := Complex => o-> (M,len) ->(
     --put the map components together into what should be a complex.
     R := ring M;
@@ -60,7 +60,10 @@ m#"ring" = R;
 S := ring presentation R;
 RS := map(R,S);
 if not R.cache#?"resolution" then 
-   R.cache#"resolution" = freeResolution coker presentation R;
+   if isHomogeneous R then
+       R.cache#"resolution" = freeResolution coker presentation R
+   else
+       R.cache#"resolution" = complex localResolution coker presentation R;
 A := R.cache#"resolution";
 
 if length A == 1 
@@ -83,7 +86,6 @@ then  (R.cache#"AInfinityLimit" = limit;
       R.cache#"BB" = hashTable for t from 1 to limit//2 list 
            t => labeledTensorComplex(toList(t:B), LengthLimit => limit);
 	   );
-
 BB := R.cache#"BB";
 
 --m#{u_1}
@@ -155,7 +157,9 @@ S := ring presentation R;
 A := labeledTensorComplex freeResolution coker presentation R;
 RS := map(R,S);
 
-Mres := freeResolution pushForward(RS,M);
+Mres := if isHomogeneous R and isHomogeneous M then freeResolution pushForward(RS,M)
+        else complex localResolution pushFwd(RS,M);
+	
 --G := complex labeledTensorComplex{Mres};
 G := labeledTensorComplex{Mres};
 m#"resolution" = G;
@@ -486,11 +490,6 @@ algebraMapComponents List := List => u -> (
     L := L0|L1;
     select(L, LL -> all (last LL, p -> p >= 2))
     )
-TEST///
-debug needsPackage "AInfinity"
-u = {2,2,3}
-assert(mapComponents u =={{1, 2, 2, {2, 2, 2}}, {1, 0, 1, {3, 3}}, {1, 0, 2, {6}}, {1, 1, 2, {2, 4}}})
-///
 
 mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
     --The output is a list D_1..D_len
@@ -505,14 +504,13 @@ mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
     M := mG#"module";
     G := mG#"resolution";
     F := burkeData(M,len); -- the list of labeled free modules
-
    --Now form the components of the maps. 
 
       for t from 1 to len list (
   
    --First construct vv, the list of valid maps F_t --> F_(t-1).
 	c :=componentsAndIndices F_t;
-	flatten apply(#c_0, s->(
+	flatten apply(#c_0, s-> (
 	    u := c_1_s;
 	--now focus on the maps starting from the u component of F_t
     	    numRComponents := #u-1;
@@ -530,20 +528,21 @@ mapComponents(HashTable, HashTable, ZZ) := List =>(mA,mG,len) ->(
 		    (F_(t-1))_[u_{0..p-1}|{-1+sum u_{p..q}}|u_{q+1..numRComponents}]*
 		    (if q<numRComponents 
 		     then 
-		        tensor (S, for i from 0 to p-1 list B_(u_i))
+		       (tensor (S, for i from 0 to p-1 list B_(u_i))
 			**
 	 		mA#(u_{p..q})
 			**
 	 		tensor(S, for i from q+1 to numRComponents-1 list B_(u_i))
 			**
 	 		G_(u_numRComponents)
+			)
                      else
 	     		tensor(S, for i from 0 to p-1 list B_(u_i))
 			**
 	     		mG#(u_{p..q})
-		    )*(F_t)^[u])
+		    )*(F_t)^[u]
 		    
-             ))))
+             )))))
     )
 
 
@@ -816,6 +815,11 @@ labeledDirectSum List := Module => L ->(
     directSum flatten apply(ciL, ci -> apply(#ci_0, i->(ci_1_i => ci_0_i)))
     )
 
+///
+--it might speed things up to have a version of the following that does the first k tensor powers
+--and the first k tensor powers tensored with a last factor D
+--simultaneously.
+///
 labeledTensorComplex = method(Options => {LengthLimit => null})
 labeledTensorComplex List := Complex => o -> L -> (
     --Input is L = {C_0..C_(p-1)}, a list of Complexes. 
@@ -858,7 +862,7 @@ suitable := v-> if min v == 0 then position (v, vv -> vv == 1) else null;
     if #modules == 0 then error();
     if #modules == 1 then return complex({map(S^0,directSum(1:(modules_0_0)),0)}, Base => sum Min -1);
     
-    d := for i from 0 to #modules -2 list(	
+    d := for i from 0 to #modules-2 list(	
         map(directSum modules#i,
             directSum modules#(i+1),
             matrix table( -- form a block matrix
@@ -971,9 +975,14 @@ golodBetti (Module,ZZ) := BettiTally => (M,b) ->(
     S := ring p;
     phi1 := substitute(presentation M, S);
     phi := phi1 | target phi1 ** p;
-    MS := prune coker phi;
-    K := res MS;
-    F := res coker p;
+    if isHomogeneous R and isHomogeneous phi then(
+        MS := prune coker phi;
+        K := res MS;
+        F := res coker p)
+    else (
+        MS = localPrune coker phi;
+        K = localResolution MS;
+        F = localResolution coker p);
     golodBetti0(F,K,b)
     )
 
@@ -1375,14 +1384,21 @@ displayBlocks E.dd_4
 betti E.dd_4
 ///
 
---Boundary cases: 1 variable, ring as module.
 ///
 restart
 needsPackage "AInfinity"
 check "AInfinity"
 ///
---ring and module have pdim 1
+
+TEST ///
+-- test code and assertions here
+-- may have as many TEST sections as needed
+///
+
+--Boundary cases: 1 variable, ring as module.
+
 TEST///
+--ring and module have pdim 1
 S = QQ[t]
 R = S/t^3
 M = R^1/t^2
@@ -1403,10 +1419,10 @@ F = burke(M,5, Check=>false)
 assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 ///
 
-
-TEST ///
--- test code and assertions here
--- may have as many TEST sections as needed
+TEST///
+debug needsPackage "AInfinity"
+u = {2,2,3}
+assert(mapComponents u =={{1, 2, 2, {2, 2, 2}}, {1, 0, 1, {3, 3}}, {1, 0, 2, {6}}, {1, 1, 2, {2, 4}}})
 ///
 
 TEST///
@@ -1561,6 +1577,11 @@ assert(F.dd^2 == 0)
 assert all(length F - 1, i-> prune HH_(i+1)F == 0)
 ///
 
+TEST///
+-- inhomogeneous case:
+S = ZZ/32003
+
+///
 end--
 
 restart
@@ -1748,3 +1769,17 @@ assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 picture F'
 ///
 
+--Gorenstein, codim 3
+restart
+needsPackage "AInfinity"
+S = ZZ/101[x_0..x_2]
+gor = n -> (
+    m = 2*n+1;
+    pfaffians(m-1, map(S^m, S^{m:-2}, (i,j) -> if i>=j then 0 else 
+	                        if i == j-1 then (if even i then S_0 else S_1) else
+				if i == m-j-1 then S_2 else
+				0_S)))
+R = S/gor 3
+elapsedTime burke(coker vars R, 7)
+elapsedTime res(coker vars R, LengthLimit => 7) 
+picture burke(coker vars R, 5)
