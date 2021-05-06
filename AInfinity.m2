@@ -1,7 +1,7 @@
 newPackage(
 	"AInfinity",
     	Version => "0.1", 
-    	Date => "October 4, 2020, rev December 2020",
+    	Date => "October 4, 2020, rev Feb 2021, rev May 2021",
         Authors => {{Name => "David Eisenbud", 
                   Email => "de@msri.org", 
                   HomePage => "http://www.msri.org/~de"},
@@ -15,7 +15,7 @@ newPackage(
 
 export {
     "aInfinity",
-    "burke",
+    "burkeResolution",
     "golodBetti",
     "picture",
     "displayBlocks",
@@ -32,9 +32,9 @@ installPackage "AInfinity"
 check AInfinity
 ///
 
-burke = method(Options=>{Check => false})
-burke(Module, ZZ) := Complex => o-> (M,len) ->(
-    --put the map components together into what should be a complex.
+burkeResolution = method(Options=>{Check => false})
+burkeResolution(Module, ZZ) := Complex => o-> (M,len) ->(
+    --put the map components together into a complex.
     R := ring M;
     mA := aInfinity R;
     mG := aInfinity(mA,M);
@@ -244,7 +244,7 @@ mA = aInfinity R
 
 assert isGolod R
 M = coker vars R
-E = burke(M,5)
+E = burkeResolution(M,5)
 E.dd^2 -- F_5-> F_4->F_3 is not 0. However, F_4 -> F_3 does surject onto ker F_3->F_2,
 picture (E.dd_4 * E.dd_5)
 picture E.dd_5
@@ -563,7 +563,7 @@ mA = aInfinity R;
 mG = aInfinity(mA,coker vars R, LengthLimit =>4) 
 K = select(keys mA, k->class k_0 === ZZ)
 
-elapsedTime F = burke(coker vars R,6)
+elapsedTime F = burkeResolution(coker vars R,6)
 assert(F.dd^2 == 0)
 testAInfinity mA
 --another test
@@ -1021,7 +1021,7 @@ Description
    of any length from the finite data mR and mX:
   Example
    X = coker vars R
-   A = betti burke(X,8)   
+   A = betti burkeResolution(X,8)   
    B = betti res(X, LengthLimit => 8)
    A == B
 SeeAlso
@@ -1035,6 +1035,7 @@ Key
  (aInfinity, Module)
  (aInfinity, HashTable, Module)
  [aInfinity, LengthLimit]
+ [aInfinity, Check]
 Headline
  aInfinity algebra and module structures on free resolutions
 Usage
@@ -1045,6 +1046,8 @@ Inputs
   of the form S/I, where S is a polynomial ring
  mR:HashTable
   output of aInfinity R
+ LengthLimit => ZZ
+ Check => Boolean
 Outputs
  mR:HashTable
   A-infinity algebra structure on res coker presentation R
@@ -1091,10 +1094,10 @@ Description
  Text
    Jesse Burke showed how to use mR,mX to make an R-free resolution
  Example
-   betti burke(X,8)   
+   betti burkeResolution(X,8)   
    betti res(X, LengthLimit =>8)
    Y = image presentation X
-   burke(Y,8)
+   burkeResolution(Y,8)
 SeeAlso
  aInfinity
 References
@@ -1103,18 +1106,19 @@ References
 
 doc ///
 Key
- burke
- (burke, Module, ZZ)
- [burke,Check]
+ burkeResolution
+ (burkeResolution, Module, ZZ)
+ [burkeResolution,Check]
 Headline
  compute a resolution from A-infinity structures
 Usage
- F = burke(M,len)
+ F = burkeResolution(M,len)
 Inputs
  M:Module
   over a factor ring R/I
  len:ZZ
   length of resolution desired
+ Check => Boolean
 Outputs
  F:Complex
   resolution of M over R, of length len
@@ -1130,10 +1134,10 @@ Description
    I = x_1^2*ideal(vars S)
    R = S/I
    M = R^1/ideal(x_1..x_3)
-   F = burke(M, 4, Check =>true)
+   F = burkeResolution(M, 4, Check =>true)
   Text
    the function golodBetti displays the Betti table of the resolution
-   that would be constructed by burke, without actually making the construction.
+   that would be constructed by burkeResolution, without actually making the construction.
   Example
    golodBetti (M,12)
    betti F
@@ -1169,9 +1173,9 @@ doc ///
 Key
  Check
 Headline
- Option for burke
+ Option for burkeResolution
 Usage
- F := burke(M, Check => true)
+ F := burkeResolution(M, Check => true)
 Inputs
  M:Module
  Check:Boolean
@@ -1179,18 +1183,18 @@ Outputs
  F:Complex
 Description
   Text
-   with Check => true, burke includes lines that check F.dd^2 == 0
+   with Check => true, burkeResolution includes lines that check F.dd^2 == 0
    and also that F is acyclic (as far as it has been computed). 
    The default value is true.
   Example
    R = ZZ/101[a,b,c]/(ideal(a,b,c))^2
    M = coker vars R
-   elapsedTime burke(M, 7, Check => false)
-   elapsedTime burke(M, 7, Check => true)
+   elapsedTime burkeResolution(M, 7, Check => false)
+   elapsedTime burkeResolution(M, 7, Check => true)
 Caveat
  The Check takes time.
 SeeAlso
- burke
+ burkeResolution
 ///
 
 doc ///
@@ -1215,7 +1219,7 @@ Inputs
   a labeled directSum module
 Description
   Text
-   The sources and targets of the differentials in F = burke(M,n), where
+   The sources and targets of the differentials in F = burkeResolution(M,n), where
    M is an R = S/I-module, are direct sums
    whose summands are labeled, each by a List of ZZ corresponding
    to a tensor product of components of the S-free resolutions of R and M.
@@ -1228,7 +1232,7 @@ Description
    When applied to a complex, the output is a "netList" display of the pictures of each of the maps.
   Example
    R = ZZ/101[a,b,c,d]/ideal"a3,a2b2,b4,c4,d2"
-   F = burke(coker vars R, 4)
+   F = burkeResolution(coker vars R, 4)
    picture F.dd_3
    picture F
   Text
@@ -1238,7 +1242,7 @@ Description
    * if the corresponding matrix is nonzero
    u if the entries of the corresponding matrix contain a unit.
 SeeAlso
- burke
+ burkeResolution
  aInfinity
 ///
 
@@ -1285,12 +1289,12 @@ doc ///
      I = (ideal(a,b,c^2))^2
      F = res(S^1/I)
      R = S/I
-     F = burke (coker vars R, 6)
+     F = burkeResolution (coker vars R, 6)
      golodBetti(coker vars R,6)
      betti res (coker vars R, LengthLimit => 6)
      betti F
    SeeAlso
-    burke
+    burkeResolution
 ///
 
 doc ///
@@ -1306,18 +1310,18 @@ Inputs
   with source and target labled direct sums of free modules
 Description
   Text
-   The maps produced by @TO burke@ and @TO aInfinity@ have direct sums of labeled modules
+   The maps produced by @TO burkeResolution@ and @TO aInfinity@ have direct sums of labeled modules
    as sources and targets; the label corresponds to the tensor factors.
    
    displayBlocks M shows this data
   Example
    R = ZZ/101[a,b,c]/(ideal(a,b,c^2))^2
-   F = burke (coker vars R, 4)
+   F = burkeResolution (coker vars R, 4)
    picture F  
    displayBlocks F.dd_3
 SeeAlso
  picture
- burke
+ burkeResolution
  extractBlocks
 ///
 
@@ -1344,20 +1348,20 @@ Outputs
   the submatrix specified by tar and sour
 Description
   Text
-   The terms of the @TO burke@ resolution are direct sums of labeled modules.
+   The terms of the @TO burkeResolution@ resolution are direct sums of labeled modules.
    the function @TO picture@ shows the symbols associated to the summands, while
    the function extractBlocks provides the submatrix associated with the summands
    specified.
   Example
    R = ZZ/101[a,b,c,d]/ideal(a^2, b^2, c^3, d^4)
    M = R^1/ideal(a*b,c*d)
-   F = burke(M,5)
+   F = burkeResolution(M,5)
    picture F.dd_3
    extractBlocks(F.dd_3, {2,1})
    extractBlocks(F.dd_3,{2,0}, {2,1})
    extractBlocks(F.dd_3,{2,0}, {{3,0},{2,1}})
 SeeAlso
-   burke
+   burkeResolution
    picture
 ///
 
@@ -1370,7 +1374,7 @@ S = kk[a,b,c]
 R = S/((ideal a^2)*ideal(a,b,c)) -- a simple 3 variable Golod ring
 K = koszul vars R
 M = coker K.dd_3
-E = burke(M,5)
+E = burkeResolution(M,5)
 E.dd^2
 apply(length E, i-> prune HH_(i)E)
 E.dd_2
@@ -1402,12 +1406,12 @@ TEST///
 S = QQ[t]
 R = S/t^3
 M = R^1/t^2
-F = burke(M, 5)
+F = burkeResolution(M, 5)
 assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 
 --resolution of the ring as module
 M = R^1
-F = burke(M,5) -- a nonminimal resolution!
+F = burkeResolution(M,5) -- a nonminimal resolution!
 F.dd
 assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 
@@ -1415,7 +1419,7 @@ assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 S = ZZ/101[s,t,u,v]
 R = S/(s*ideal(s,t,u,v))
 M = R^1/s
-F = burke(M,5, Check=>false)
+F = burkeResolution(M,5, Check=>false)
 assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 ///
 
@@ -1437,7 +1441,7 @@ TEST///
    Y = R^1/a
    mR = aInfinity R
    aInfinity(mR,Y)
-   F = burke(Y,8)
+   F = burkeResolution(Y,8)
 assert(F.dd^2 == 0)
 assert(all(7, i-> prune HH_(i+1)F == 0))
 ///
@@ -1455,7 +1459,7 @@ F = res(M, LengthLimit => 5)
 N = coker F.dd_5 ;
 mA = aInfinity R;
 mG = aInfinity(mA,N);
-assert(betti burke(N,5) == betti res (N, LengthLimit => 5))
+assert(betti burkeResolution(N,5) == betti res (N, LengthLimit => 5))
 assert(F.dd^2 == 0)
 assert all(length F -1, i-> prune HH_(i+1)F == 0)
 ///
@@ -1547,7 +1551,7 @@ I = ideal"x2,y2,z2"*(ideal vars S)
 R =S/I
 mA = aInfinity R
 mG = aInfinity(mA,coker vars R)
-F = burke(coker vars R,6)
+F = burkeResolution(coker vars R,6)
 assert (F.dd^2==0)
 assert all(5, i-> prune HH_(i+1)F == 0)
 ///
@@ -1572,15 +1576,18 @@ S = ZZ/101[x_1..x_4]
 I = x_1*ideal(vars S)
 R = S/I
 M = R^1/ideal(x_1..x_2)
-F = burke(M, 8, Check =>false)
+F = burkeResolution(M, 8, Check =>false)
 assert(F.dd^2 == 0)
 assert all(length F - 1, i-> prune HH_(i+1)F == 0)
 ///
 
 TEST///
 -- inhomogeneous case:
-S = ZZ/32003
-
+kk = ZZ/32003
+S = kk[x,y]
+R = S/ideal(x^2+x^3+y^5)
+setMaxIdeal ideal vars R
+aInfinity R
 ///
 end--
 
@@ -1759,12 +1766,12 @@ I = x_1*ideal(vars S)
 R = S/I
 M = R^1/ideal(x_1..x_3)
 
-time F = burke(M, 8, Check =>false)
-time F = burke(M, 8, Check =>true)
+time F = burkeResolution(M, 8, Check =>false)
+time F = burkeResolution(M, 8, Check =>true)
 time res(M, LengthLimit => 8) -- 100 times faster!
 picture F
 assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
-F = burke(M',5)
+F = burkeResolution(M',5)
 assert (0 == F.dd^2 and all(length F -1 , i-> 0 == HH_(i+1) F));
 picture F'
 ///
@@ -1780,6 +1787,6 @@ gor = n -> (
 				if i == m-j-1 then S_2 else
 				0_S)))
 R = S/gor 3
-elapsedTime burke(coker vars R, 7)
+elapsedTime burkeResolution(coker vars R, 7)
 elapsedTime res(coker vars R, LengthLimit => 7) 
-picture burke(coker vars R, 5)
+picture burkeResolution(coker vars R, 5)
