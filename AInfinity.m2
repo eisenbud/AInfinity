@@ -1003,7 +1003,7 @@ Headline
   A-infinity algebra and module structures on free resolutions
 Description
   Text
-   Following Burke's paper "Higher Homotopies and Golod Rings",
+   Following Jesse Burke's paper "Higher Homotopies and Golod Rings",
    given a polynomial ring S and a factor ring R = S/I and an R-module X,
    we compute (finite) A-infinity algebra structure mR on an S-free resolution of R
    and the A-infinity mR-module structure on an S-free resolution of X, and use them to
@@ -1588,13 +1588,19 @@ S = kk[x,y]
 R = S/ideal(x^2+x^3+y^5)
 setMaxIdeal ideal vars R
 aInfinity R
+
 ///
 end--
 
-restart
-needsPackage "AInfinity"
-check "AInfinity"
 ///
+restart
+uninstallPackage "AInfinity"
+restart
+installPackage "AInfinity"
+check AInfinity
+viewHelp AInfinity
+///
+
 debug needsPackage"AInfinity"
 --necessity of double labeling:
 C = labeler(A,S^1) ++ labeler(B,S^2)
